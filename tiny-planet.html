@@ -719,6 +719,7 @@ updateUI();
 
 const K={};
 addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
   K[e.code]=true;
   if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&gameState==='walk') isRunning=!isRunning;
   if(e.code==='KeyE'&&gameState==='walk'){ const cw=new THREE.Vector3(),sw=new THREE.Vector3(); charPivot.getWorldPosition(cw);shipPivot.getWorldPosition(sw); if(cw.distanceTo(sw)<1.9)enterShip(); }
