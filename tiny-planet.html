@@ -1035,7 +1035,7 @@ function updateUI(){
   document.getElementById('xhair').style.display=
     (document.pointerLockElement===renderer.domElement)?'block':'none';
   document.getElementById('hint').textContent=fly
-    ?'SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  CLICK·shoot  F·land'
+    ?'click·lock  WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F·land'
     :flt?'drifting — click to aim+shoot'
     :'click to aim · WASD·move · SHIFT·run · E·board · CLICK·shoot · ESC·unlock';
 }
@@ -1065,7 +1065,7 @@ addEventListener('keyup',e=>K[e.code]=false);
 
 renderer.domElement.addEventListener('click',e=>{
   if(e.button===0){
-    if(gameState!=='fly'&&document.pointerLockElement!==renderer.domElement){
+    if(document.pointerLockElement!==renderer.domElement){
       if(gameReady) renderer.domElement.requestPointerLock();
       return;
     }
