@@ -623,7 +623,7 @@ function walkCamera(){
     .addScaledVector(camBack, CAM_DIST*Math.cos(camElevation))
     .addScaledVector(wUp,     CAM_DIST*Math.sin(camElevation));
   camera.up.copy(wUp);
-  camera.lookAt(_cwp.clone().addScaledVector(wUp,.35));
+  camera.lookAt(_cwp.clone().addScaledVector(wUp,.7));
 }
 function flyCamera(){
   const fwd=getShipFwd(),up=getShipUp();
