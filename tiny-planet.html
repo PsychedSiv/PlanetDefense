@@ -908,9 +908,11 @@ function broadcastState(){
     qz=charPivot.quaternion.z; qw=charPivot.quaternion.w;
     planet=activePD.name;
   }
+  // Include planet positions so both clients stay in the same solar system
+  const planets=PLANET_DEFS.map(pd=>[+pd.physPos.x.toFixed(2),+pd.physPos.y.toFixed(2),+pd.physPos.z.toFixed(2)]);
   channel.send({
     type:'broadcast', event:'player',
-    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planet }
+    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planet, planets }
   });
 }
 
@@ -929,6 +931,14 @@ function reparentRemote(rp, planetName){
 
 function handleRemotePlayer(payload){
   if(payload.id===myId) return;
+  // Sync planet positions so both clients share the same solar system layout
+  if(payload.planets){
+    payload.planets.forEach(([x,y,z],i)=>{
+      if(!PLANET_DEFS[i]) return;
+      PLANET_DEFS[i].physPos.set(x,y,z);
+      PLANET_DEFS[i].pivot.position.set(x,y,z);
+    });
+  }
   const rp=getOrCreateRemote(payload.id, payload.name, payload.state);
   rp.state=payload.state;
   // Re-parent before updating position so interpolation is in the right space
@@ -1011,7 +1021,7 @@ async function joinWorld(){
 
     document.getElementById('login-screen').style.display='none';
     gameReady=true;
-    window.addEventListener('beforeunload',()=>savePlayer());
+    window.addEventListener('beforeunload',()=>{ savePlayer(); if(channel) channel.untrack(); });
 
   } catch(e){
     errEl.textContent='connection failed — check your Supabase keys';
