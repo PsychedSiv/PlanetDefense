@@ -1459,11 +1459,13 @@ function loop(){
   if(gameState==='walk'){
     walkStep(dt,moveFwd,moveRight);
     walkCamera();
-    // Move crosshair to projected aim point so vertical aim is visible
-    {const _me=charPivot.matrixWorld.elements;
+    // Move crosshair: project aim point using updated camera matrix
+    {camera.updateMatrixWorld();
+     const _me=charPivot.matrixWorld.elements;
      const _up=new THREE.Vector3(_me[4],_me[5],_me[6]).normalize();
      const _ad=camFwd.clone().multiplyScalar(Math.cos(camElevation)).addScaledVector(_up,Math.sin(camElevation));
-     const _ap=_cwp.clone().addScaledVector(_ad,12).project(camera);
+     const _ap=_cwp.clone().addScaledVector(_ad,12);
+     _ap.project(camera);
      xhairEl.style.left=((_ap.x*.5+.5)*innerWidth)+'px';
      xhairEl.style.top=((1-(_ap.y*.5+.5))*innerHeight)+'px';}
     const cw=new THREE.Vector3(),sw=new THREE.Vector3();
@@ -1486,10 +1488,12 @@ function loop(){
   } else { // float
     floatStep(dt);
     floatCamera();
-    {let _up=floatPos.clone().normalize();let nearD=Infinity;
+    {camera.updateMatrixWorld();
+     let _up=floatPos.clone().normalize();let nearD=Infinity;
      PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;_up=floatPos.clone().sub(pd.physPos).normalize();}});
      const _ad=camFwd.clone().multiplyScalar(Math.cos(camElevation)).addScaledVector(_up,Math.sin(camElevation));
-     const _ap=floatPos.clone().addScaledVector(_ad,12).project(camera);
+     const _ap=floatPos.clone().addScaledVector(_ad,12);
+     _ap.project(camera);
      xhairEl.style.left=((_ap.x*.5+.5)*innerWidth)+'px';
      xhairEl.style.top=((1-(_ap.y*.5+.5))*innerHeight)+'px';}
   }
