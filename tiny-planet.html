@@ -969,16 +969,28 @@ function handleRemotePlayer(payload){
   if(payload.planets && !isPhysicsHost){
     payload.planets.forEach(([x,y,z],i)=>{
       if(!PLANET_DEFS[i]) return;
+      const firstSync = !PLANET_DEFS[i].remoteTarget;
       if(!PLANET_DEFS[i].remoteTarget) PLANET_DEFS[i].remoteTarget = new THREE.Vector3();
       PLANET_DEFS[i].remoteTarget.set(x,y,z);
+      if(firstSync){
+        // Snap immediately on first sync — avoids the large initial convergence gap
+        PLANET_DEFS[i].physPos.copy(PLANET_DEFS[i].remoteTarget);
+        PLANET_DEFS[i].pivot.position.copy(PLANET_DEFS[i].remoteTarget);
+      }
     });
     planetSyncAge = 0;
   }
   rp.state=payload.state;
-  // Re-parent before updating position so interpolation is in the right space
-  reparentRemote(rp, payload.planet||null);
+  // Set target BEFORE reparent so we can snap pos on parent change
   rp.targetPos.set(payload.px,payload.py,payload.pz);
   rp.targetQ.set(payload.qx,payload.qy,payload.qz,payload.qw);
+  const prevPlanet = rp.planetName;
+  reparentRemote(rp, payload.planet||null);
+  // Snap pos/q immediately on parent change — avoids lerping from wrong coordinate space
+  if(rp.planetName !== prevPlanet){
+    rp.pos.copy(rp.targetPos);
+    rp.q.copy(rp.targetQ);
+  }
   rp.lastSeen=Date.now();
 }
 
