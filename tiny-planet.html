@@ -817,6 +817,7 @@ function getOrCreateRemote(id, name, state){
     pos:       new THREE.Vector3(),
     q:         new THREE.Quaternion(),
     lastSeen:  Date.now(),
+    planetName: undefined,
   };
   rp.astro.add(makeNameLabel(name,color));
   rp.ship.add(makeNameLabel(name,color));
@@ -856,43 +857,46 @@ const BROADCAST_RATE=0.1;
 
 function broadcastState(){
   if(!channel||!myId) return;
-  let px,py,pz,qx,qy,qz,qw;
+  let px,py,pz,qx,qy,qz,qw,planet=null;
   if(gameState==='fly'){
+    // World-space — ship is not parented to a planet
     px=shipPos.x; py=shipPos.y; pz=shipPos.z;
     qx=shipQ.x; qy=shipQ.y; qz=shipQ.z; qw=shipQ.w;
   } else {
-    charPivot.updateWorldMatrix(true,false);
-    const me=charPivot.matrixWorld.elements;
-    px=me[12]; py=me[13]; pz=me[14];
-    const wq=new THREE.Quaternion().setFromRotationMatrix(charPivot.matrixWorld);
-    qx=wq.x; qy=wq.y; qz=wq.z; qw=wq.w;
+    // LOCAL-space relative to planet pivot — eliminates jitter when planet moves
+    px=charPivot.position.x; py=charPivot.position.y; pz=charPivot.position.z;
+    qx=charPivot.quaternion.x; qy=charPivot.quaternion.y;
+    qz=charPivot.quaternion.z; qw=charPivot.quaternion.w;
+    planet=activePD.name;
   }
-  // Pack planet positions so remote clients stay in sync
-  const planets=PLANET_DEFS.map(pd=>[
-    Math.round(pd.physPos.x*100)/100,
-    Math.round(pd.physPos.y*100)/100,
-    Math.round(pd.physPos.z*100)/100
-  ]);
   channel.send({
     type:'broadcast', event:'player',
-    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planets }
+    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planet }
   });
+}
+
+// Re-parent a remote player mesh to the correct planet pivot (or scene for flying)
+function reparentRemote(rp, planetName){
+  if(rp.planetName===planetName) return;
+  [rp.astro, rp.ship].forEach(m=>{ if(m.parent) m.parent.remove(m); });
+  if(planetName){
+    const pd=PLANET_DEFS.find(p=>p.name===planetName);
+    if(pd){ pd.pivot.add(rp.astro); pd.pivot.add(rp.ship); }
+  } else {
+    scene.add(rp.astro); scene.add(rp.ship);
+  }
+  rp.planetName=planetName;
 }
 
 function handleRemotePlayer(payload){
   if(payload.id===myId) return;
   const rp=getOrCreateRemote(payload.id, payload.name, payload.state);
   rp.state=payload.state;
+  // Re-parent before updating position so interpolation is in the right space
+  reparentRemote(rp, payload.planet||null);
   rp.targetPos.set(payload.px,payload.py,payload.pz);
   rp.targetQ.set(payload.qx,payload.qy,payload.qz,payload.qw);
   rp.lastSeen=Date.now();
-  // Sync planet positions to match the sender's simulation
-  if(payload.planets){
-    payload.planets.forEach(([x,y,z],i)=>{
-      PLANET_DEFS[i].physPos.set(x,y,z);
-      PLANET_DEFS[i].pivot.position.set(x,y,z);
-    });
-  }
 }
 
 // ═══════════════════════════════════════════════════════════
