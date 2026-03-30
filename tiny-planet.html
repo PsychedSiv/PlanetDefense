@@ -1000,6 +1000,7 @@ function flashDamage(){
 // ═══════════════════════════════════════════════════════════
 let fxTimer=0;
 const fxEl=document.getElementById('fx');
+const xhairEl=document.getElementById('xhair');
 function flash(msg,dur=1.2){fxEl.textContent=msg;fxEl.style.opacity='1';fxTimer=dur;}
 
 function updateHud(){
@@ -1458,6 +1459,13 @@ function loop(){
   if(gameState==='walk'){
     walkStep(dt,moveFwd,moveRight);
     walkCamera();
+    // Move crosshair to projected aim point so vertical aim is visible
+    {const _me=charPivot.matrixWorld.elements;
+     const _up=new THREE.Vector3(_me[4],_me[5],_me[6]).normalize();
+     const _ad=camFwd.clone().multiplyScalar(Math.cos(camElevation)).addScaledVector(_up,Math.sin(camElevation));
+     const _ap=_cwp.clone().addScaledVector(_ad,12).project(camera);
+     xhairEl.style.left=((_ap.x*.5+.5)*innerWidth)+'px';
+     xhairEl.style.top=((1-(_ap.y*.5+.5))*innerHeight)+'px';}
     const cw=new THREE.Vector3(),sw=new THREE.Vector3();
     charPivot.getWorldPosition(cw); shipPivot.getWorldPosition(sw);
     if(cw.distanceTo(sw)<1.9)
@@ -1466,6 +1474,7 @@ function loop(){
       document.getElementById('hint').textContent=
         'click to aim · WASD·move · SHIFT·run · E·board · click·shoot · ESC·unlock';
   } else if(gameState==='fly'){
+    xhairEl.style.left='50%'; xhairEl.style.top='50%';
     shipFlyStep(dt,thrustFB,strafeRL,roll);
     flyCamera();
     if(thrustFB!==0||strafeRL!==0) refreshOrbits();
@@ -1477,6 +1486,12 @@ function loop(){
   } else { // float
     floatStep(dt);
     floatCamera();
+    {let _up=floatPos.clone().normalize();let nearD=Infinity;
+     PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;_up=floatPos.clone().sub(pd.physPos).normalize();}});
+     const _ad=camFwd.clone().multiplyScalar(Math.cos(camElevation)).addScaledVector(_up,Math.sin(camElevation));
+     const _ap=floatPos.clone().addScaledVector(_ad,12).project(camera);
+     xhairEl.style.left=((_ap.x*.5+.5)*innerWidth)+'px';
+     xhairEl.style.top=((1-(_ap.y*.5+.5))*innerHeight)+'px';}
   }
 
   renderer.render(scene,camera);
