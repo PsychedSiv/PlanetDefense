@@ -465,9 +465,35 @@ function verlet(bodies, dt){
 
 const planetBodies = PLANET_DEFS.map(pd=>({pos:pd.physPos, vel:pd.vel, gm:pd.gm, pd}));
 
+// ── Physics host: the player with the lexicographically smallest ID owns the
+//    planet simulation.  Others lerp toward the host's broadcasted positions.
+let isPhysicsHost = true;   // true until another player connects
+let planetSyncAge = Infinity; // seconds since last received planet sync
+
+function updatePhysicsHostRole(){
+  const otherIds = Object.keys(remotePlayers);
+  if(otherIds.length === 0){ isPhysicsHost = true; return; }
+  const allIds = [myId, ...otherIds].sort();
+  isPhysicsHost = (allIds[0] === myId);
+}
+
 function nbodyStep(dt){
-  verlet(planetBodies, dt);
-  PLANET_DEFS.forEach(pd=>pd.pivot.position.copy(pd.physPos));
+  planetSyncAge += dt;
+  if(!isPhysicsHost && planetSyncAge < 2.0){
+    // Non-host: smoothly follow the host's planet positions
+    PLANET_DEFS.forEach(pd=>{
+      if(pd.remoteTarget){
+        const prev = pd.physPos.clone();
+        pd.physPos.lerp(pd.remoteTarget, Math.min(1, dt * 6));
+        // Keep vel estimate so physics resumes correctly if host leaves
+        pd.vel.copy(pd.physPos).sub(prev).divideScalar(Math.max(dt, 0.001));
+      }
+      pd.pivot.position.copy(pd.physPos);
+    });
+  } else {
+    verlet(planetBodies, dt);
+    PLANET_DEFS.forEach(pd=>pd.pivot.position.copy(pd.physPos));
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -868,8 +894,11 @@ function getOrCreateRemote(id, name, state){
 
 function removeRemote(id){
   const rp=remotePlayers[id]; if(!rp) return;
-  scene.remove(rp.astro); scene.remove(rp.ship);
+  [rp.astro, rp.ship].forEach(m=>{ if(m.parent) m.parent.remove(m); });
   delete remotePlayers[id];
+  // Re-check host role; if we become host, resume local physics immediately
+  updatePhysicsHostRole();
+  if(isPhysicsHost) planetSyncAge = Infinity;
 }
 
 function updateRemotePlayers(dt){
@@ -908,8 +937,10 @@ function broadcastState(){
     qz=charPivot.quaternion.z; qw=charPivot.quaternion.w;
     planet=activePD.name;
   }
-  // Include planet positions so both clients stay in the same solar system
-  const planets=PLANET_DEFS.map(pd=>[+pd.physPos.x.toFixed(2),+pd.physPos.y.toFixed(2),+pd.physPos.z.toFixed(2)]);
+  // Only the physics host broadcasts planet positions to avoid ping-pong jitter
+  const planets = isPhysicsHost
+    ? PLANET_DEFS.map(pd=>[+pd.physPos.x.toFixed(2),+pd.physPos.y.toFixed(2),+pd.physPos.z.toFixed(2)])
+    : undefined;
   channel.send({
     type:'broadcast', event:'player',
     payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planet, planets }
@@ -931,15 +962,18 @@ function reparentRemote(rp, planetName){
 
 function handleRemotePlayer(payload){
   if(payload.id===myId) return;
-  // Sync planet positions so both clients share the same solar system layout
-  if(payload.planets){
+  const rp=getOrCreateRemote(payload.id, payload.name, payload.state);
+  // Re-evaluate who is the physics host now that we know this player's ID
+  updatePhysicsHostRole();
+  // If host sent planet positions, store as lerp targets (non-host only)
+  if(payload.planets && !isPhysicsHost){
     payload.planets.forEach(([x,y,z],i)=>{
       if(!PLANET_DEFS[i]) return;
-      PLANET_DEFS[i].physPos.set(x,y,z);
-      PLANET_DEFS[i].pivot.position.set(x,y,z);
+      if(!PLANET_DEFS[i].remoteTarget) PLANET_DEFS[i].remoteTarget = new THREE.Vector3();
+      PLANET_DEFS[i].remoteTarget.set(x,y,z);
     });
+    planetSyncAge = 0;
   }
-  const rp=getOrCreateRemote(payload.id, payload.name, payload.state);
   rp.state=payload.state;
   // Re-parent before updating position so interpolation is in the right space
   reparentRemote(rp, payload.planet||null);
