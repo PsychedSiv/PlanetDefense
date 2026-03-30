@@ -867,9 +867,15 @@ function broadcastState(){
     const wq=new THREE.Quaternion().setFromRotationMatrix(charPivot.matrixWorld);
     qx=wq.x; qy=wq.y; qz=wq.z; qw=wq.w;
   }
+  // Pack planet positions so remote clients stay in sync
+  const planets=PLANET_DEFS.map(pd=>[
+    Math.round(pd.physPos.x*100)/100,
+    Math.round(pd.physPos.y*100)/100,
+    Math.round(pd.physPos.z*100)/100
+  ]);
   channel.send({
     type:'broadcast', event:'player',
-    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw }
+    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planets }
   });
 }
 
@@ -880,6 +886,13 @@ function handleRemotePlayer(payload){
   rp.targetPos.set(payload.px,payload.py,payload.pz);
   rp.targetQ.set(payload.qx,payload.qy,payload.qz,payload.qw);
   rp.lastSeen=Date.now();
+  // Sync planet positions to match the sender's simulation
+  if(payload.planets){
+    payload.planets.forEach(([x,y,z],i)=>{
+      PLANET_DEFS[i].physPos.set(x,y,z);
+      PLANET_DEFS[i].pivot.position.set(x,y,z);
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
