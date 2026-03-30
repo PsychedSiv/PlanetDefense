@@ -517,8 +517,8 @@ const WALK_SPEED=(2*Math.PI*3.5)/30, RUN_MULT=2.4;
 let isRunning=false, stepT=0;
 let charFwd=new THREE.Vector3(0,0,1);
 let camFwd=new THREE.Vector3(0,0,1);
-let camElevation=.55;
-const CAM_ELEV_MIN=.05, CAM_ELEV_MAX=1.35;
+let camElevation=0.1;
+const CAM_ELEV_MIN=-1.1, CAM_ELEV_MAX=1.1;
 
 function walkStep(dt,moveFwd,moveRight){
   const speed=WALK_SPEED*(isRunning?RUN_MULT:1)*dt;
@@ -775,12 +775,11 @@ function walkCamera(){
   charPivot.getWorldPosition(_cwp);
   camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
   const camBack=camFwd.clone().negate();
-  const CAM_DIST=1.4;
-  camera.position.copy(_cwp)
-    .addScaledVector(camBack,CAM_DIST*Math.cos(camElevation))
-    .addScaledVector(wUp,CAM_DIST*Math.sin(camElevation));
+  camera.position.copy(_cwp).addScaledVector(camBack,4.5).addScaledVector(wUp,1.5);
   camera.up.copy(wUp);
-  camera.lookAt(_cwp.clone().addScaledVector(wUp,.15));
+  const aimFwd=camFwd.clone().multiplyScalar(Math.cos(camElevation))
+    .addScaledVector(wUp,Math.sin(camElevation));
+  camera.lookAt(_cwp.clone().addScaledVector(wUp,0.6).addScaledVector(aimFwd,20));
 }
 function flyCamera(){
   const fwd=getShipFwd(),up=getShipUp();
@@ -794,12 +793,11 @@ function floatCamera(){
   PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;up=floatPos.clone().sub(pd.physPos).normalize();}});
   camFwd.addScaledVector(up,-camFwd.dot(up)).normalize();
   const back=camFwd.clone().negate();
-  const CAM_DIST=1.6;
-  camera.position.copy(floatPos)
-    .addScaledVector(back,CAM_DIST*Math.cos(camElevation))
-    .addScaledVector(up,CAM_DIST*Math.sin(camElevation));
+  camera.position.copy(floatPos).addScaledVector(back,4.5).addScaledVector(up,1.5);
   camera.up.copy(up);
-  camera.lookAt(floatPos.clone().addScaledVector(up,.15));
+  const aimFwd=camFwd.clone().multiplyScalar(Math.cos(camElevation))
+    .addScaledVector(up,Math.sin(camElevation));
+  camera.lookAt(floatPos.clone().addScaledVector(up,0.6).addScaledVector(aimFwd,20));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -882,16 +880,14 @@ function fireShot(){
     origin=shipPos.clone().addScaledVector(getShipFwd(),1.2);
     dir=getShipFwd(); color=0x44aaff; type='ship';
   } else if(gameState==='walk'){
+    charPivot.updateWorldMatrix(true,false);
+    const _me=charPivot.matrixWorld.elements;
+    const wUp=new THREE.Vector3(_me[4],_me[5],_me[6]).normalize();
     charPivot.getWorldPosition(origin=new THREE.Vector3());
-    // Aim in camera forward direction
-    dir=camFwd.clone().addScaledVector(
-      charPivot.position.clone().normalize(),
-      -camFwd.dot(charPivot.position.clone().normalize())
-    ).normalize();
-    if(dir.lengthSq()<.01) dir=camFwd.clone();
+    // Aim direction: horizontal camFwd tilted by elevation
+    dir=camFwd.clone().multiplyScalar(Math.cos(camElevation))
+      .addScaledVector(wUp,Math.sin(camElevation)).normalize();
     // Muzzle: slightly forward + up
-    const wUp=charPivot.position.clone().normalize().applyMatrix4(
-      new THREE.Matrix4().extractRotation(charPivot.parent.matrixWorld));
     origin.addScaledVector(dir,.3).addScaledVector(wUp,.5);
     color=0xff8822; type='astro';
   } else { // float
