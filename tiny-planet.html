@@ -774,11 +774,12 @@ function walkCamera(){
   const wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
   charPivot.getWorldPosition(_cwp);
   camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
-  const camBack=camFwd.clone().negate();
-  // Overhead isometric: camera high + behind, looking slightly ahead of character
-  camera.position.copy(_cwp).addScaledVector(camBack,3.5).addScaledVector(wUp,6.0);
+  // Camera orbits behind character along aim direction; lookAt keeps character in frame
+  const aimDir=camFwd.clone().multiplyScalar(Math.cos(camElevation))
+    .addScaledVector(wUp,Math.sin(camElevation));
+  camera.position.copy(_cwp).addScaledVector(aimDir,-5.5);
   camera.up.copy(wUp);
-  camera.lookAt(_cwp.clone().addScaledVector(camFwd,2.5).addScaledVector(wUp,0.3));
+  camera.lookAt(_cwp.clone().addScaledVector(wUp,0.5));
 }
 function flyCamera(){
   const fwd=getShipFwd(),up=getShipUp();
@@ -791,10 +792,11 @@ function floatCamera(){
   let nearD=Infinity;
   PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;up=floatPos.clone().sub(pd.physPos).normalize();}});
   camFwd.addScaledVector(up,-camFwd.dot(up)).normalize();
-  const back=camFwd.clone().negate();
-  camera.position.copy(floatPos).addScaledVector(back,3.5).addScaledVector(up,6.0);
+  const aimDir=camFwd.clone().multiplyScalar(Math.cos(camElevation))
+    .addScaledVector(up,Math.sin(camElevation));
+  camera.position.copy(floatPos).addScaledVector(aimDir,-5.5);
   camera.up.copy(up);
-  camera.lookAt(floatPos.clone().addScaledVector(camFwd,2.5).addScaledVector(up,0.3));
+  camera.lookAt(floatPos.clone().addScaledVector(up,0.5));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1459,15 +1461,6 @@ function loop(){
   if(gameState==='walk'){
     walkStep(dt,moveFwd,moveRight);
     walkCamera();
-    // Move crosshair: project aim point using updated camera matrix
-    {camera.updateMatrixWorld();
-     const _me=charPivot.matrixWorld.elements;
-     const _up=new THREE.Vector3(_me[4],_me[5],_me[6]).normalize();
-     const _ad=camFwd.clone().multiplyScalar(Math.cos(camElevation)).addScaledVector(_up,Math.sin(camElevation));
-     const _ap=_cwp.clone().addScaledVector(_ad,12);
-     _ap.project(camera);
-     xhairEl.style.left=((_ap.x*.5+.5)*innerWidth)+'px';
-     xhairEl.style.top=((1-(_ap.y*.5+.5))*innerHeight)+'px';}
     const cw=new THREE.Vector3(),sw=new THREE.Vector3();
     charPivot.getWorldPosition(cw); shipPivot.getWorldPosition(sw);
     if(cw.distanceTo(sw)<1.9)
@@ -1476,7 +1469,6 @@ function loop(){
       document.getElementById('hint').textContent=
         'click to aim · WASD·move · SHIFT·run · E·board · click·shoot · ESC·unlock';
   } else if(gameState==='fly'){
-    xhairEl.style.left='50%'; xhairEl.style.top='50%';
     shipFlyStep(dt,thrustFB,strafeRL,roll);
     flyCamera();
     if(thrustFB!==0||strafeRL!==0) refreshOrbits();
@@ -1488,14 +1480,6 @@ function loop(){
   } else { // float
     floatStep(dt);
     floatCamera();
-    {camera.updateMatrixWorld();
-     let _up=floatPos.clone().normalize();let nearD=Infinity;
-     PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;_up=floatPos.clone().sub(pd.physPos).normalize();}});
-     const _ad=camFwd.clone().multiplyScalar(Math.cos(camElevation)).addScaledVector(_up,Math.sin(camElevation));
-     const _ap=floatPos.clone().addScaledVector(_ad,12);
-     _ap.project(camera);
-     xhairEl.style.left=((_ap.x*.5+.5)*innerWidth)+'px';
-     xhairEl.style.top=((1-(_ap.y*.5+.5))*innerHeight)+'px';}
   }
 
   renderer.render(scene,camera);
