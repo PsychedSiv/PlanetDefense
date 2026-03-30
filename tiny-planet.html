@@ -517,8 +517,8 @@ const WALK_SPEED=(2*Math.PI*3.5)/30, RUN_MULT=2.4;
 let isRunning=false, stepT=0;
 let charFwd=new THREE.Vector3(0,0,1);
 let camFwd=new THREE.Vector3(0,0,1);
-let camElevation=0.1;
-const CAM_ELEV_MIN=-1.1, CAM_ELEV_MAX=1.1;
+let camElevation=0.15;  // bullet aim elevation only (0=horizontal)
+const CAM_ELEV_MIN=-0.55, CAM_ELEV_MAX=0.85;
 
 function walkStep(dt,moveFwd,moveRight){
   const speed=WALK_SPEED*(isRunning?RUN_MULT:1)*dt;
@@ -775,11 +775,10 @@ function walkCamera(){
   charPivot.getWorldPosition(_cwp);
   camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
   const camBack=camFwd.clone().negate();
-  camera.position.copy(_cwp).addScaledVector(camBack,4.5).addScaledVector(wUp,1.5);
+  // Overhead isometric: camera high + behind, looking slightly ahead of character
+  camera.position.copy(_cwp).addScaledVector(camBack,3.5).addScaledVector(wUp,6.0);
   camera.up.copy(wUp);
-  const aimFwd=camFwd.clone().multiplyScalar(Math.cos(camElevation))
-    .addScaledVector(wUp,Math.sin(camElevation));
-  camera.lookAt(_cwp.clone().addScaledVector(wUp,0.6).addScaledVector(aimFwd,20));
+  camera.lookAt(_cwp.clone().addScaledVector(camFwd,2.5).addScaledVector(wUp,0.3));
 }
 function flyCamera(){
   const fwd=getShipFwd(),up=getShipUp();
@@ -793,11 +792,9 @@ function floatCamera(){
   PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;up=floatPos.clone().sub(pd.physPos).normalize();}});
   camFwd.addScaledVector(up,-camFwd.dot(up)).normalize();
   const back=camFwd.clone().negate();
-  camera.position.copy(floatPos).addScaledVector(back,4.5).addScaledVector(up,1.5);
+  camera.position.copy(floatPos).addScaledVector(back,3.5).addScaledVector(up,6.0);
   camera.up.copy(up);
-  const aimFwd=camFwd.clone().multiplyScalar(Math.cos(camElevation))
-    .addScaledVector(up,Math.sin(camElevation));
-  camera.lookAt(floatPos.clone().addScaledVector(up,0.6).addScaledVector(aimFwd,20));
+  camera.lookAt(floatPos.clone().addScaledVector(camFwd,2.5).addScaledVector(up,0.3));
 }
 
 // ═══════════════════════════════════════════════════════════
