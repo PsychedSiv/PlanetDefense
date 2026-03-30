@@ -529,7 +529,7 @@ function walkStep(dt,moveFwd,moveRight){
   if(moving){
     const md=new THREE.Vector3();
     if(moveFwd)  md.addScaledVector(cfwd,moveFwd);
-    if(moveRight)md.addScaledVector(cright,-moveRight);
+    if(moveRight)md.addScaledVector(cright,moveRight);
     if(md.lengthSq()>.0001){
       md.normalize();
       charFwd.copy(md).addScaledVector(up,-md.dot(up)).normalize();
@@ -589,16 +589,15 @@ function enterShip(){
   charMesh.visible=false;
   myShipHp=SHIP_MAX_HP;
   gameState='fly';
-  if(document.pointerLockElement) document.exitPointerLock();
+  renderer.domElement.requestPointerLock();
   setTimeout(refreshOrbits,100);
   updateUI();
 }
 
-function shipFlyStep(dt,thrust,yaw,pitch,roll){
-  if(yaw){   const q=new THREE.Quaternion().setFromAxisAngle(getShipUp(),-yaw*SHIP_TURN*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
-  if(pitch){ const r=getShipFwd().cross(getShipUp()).normalize(); const q=new THREE.Quaternion().setFromAxisAngle(r,pitch*SHIP_TURN*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
+function shipFlyStep(dt,thrustFB,strafeRL,roll){
   if(roll){  const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
-  if(thrust) shipVel.addScaledVector(getShipFwd(),thrust*SHIP_SPEED*dt);
+  if(thrustFB) shipVel.addScaledVector(getShipFwd(),thrustFB*SHIP_SPEED*dt);
+  if(strafeRL){const r=new THREE.Vector3(1,0,0).applyQuaternion(shipQ).normalize(); shipVel.addScaledVector(r,strafeRL*SHIP_SPEED*dt);}
   const allB=[...planetBodies,shipPhysBody];
   const a0=gravAccel(allB,allB.length-1);
   shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt; shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt; shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
@@ -606,8 +605,9 @@ function shipFlyStep(dt,thrust,yaw,pitch,roll){
   shipVel.x+=.5*(a0.x+a1.x)*dt; shipVel.y+=.5*(a0.y+a1.y)*dt; shipVel.z+=.5*(a0.z+a1.z)*dt;
   shipPivot.position.copy(shipPos);
   shipPivot.setRotationFromQuaternion(shipQ);
-  const gl=shipMesh.getObjectByName('glow'); if(gl) gl.intensity=thrust>0?2.2:.1;
-  ['glowL','glowR'].forEach(n=>{const l=shipMesh.getObjectByName(n);if(l)l.intensity=thrust>0?.4:0;});
+  const thrusting=thrustFB>0||strafeRL!==0;
+  const gl=shipMesh.getObjectByName('glow'); if(gl) gl.intensity=thrusting?2.2:.1;
+  ['glowL','glowR'].forEach(n=>{const l=shipMesh.getObjectByName(n);if(l)l.intensity=thrusting?.4:0;});
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -905,7 +905,7 @@ function fireShot(){
   const mesh=makeProjectileMesh(color);
   mesh.position.copy(origin); scene.add(mesh);
   localProjs.push({mesh,pos:origin.clone(),vel,type,life:SHOT_LIFE,color});
-  broadcastShot(origin,dir,SHOT_SPEED+(gameState==='fly'?shipVel.length():0),color,type);
+  broadcastShot(origin,vel,color,type);
 
   // Muzzle flash
   const flash=new THREE.PointLight(color,3,4); flash.position.copy(origin); scene.add(flash);
@@ -1077,7 +1077,15 @@ renderer.domElement.addEventListener('contextmenu',e=>{e.preventDefault();});
 addEventListener('mousemove',e=>{
   const locked=document.pointerLockElement===renderer.domElement;
   if(!locked) return;
-  if(gameState==='walk'||gameState==='float'){
+  if(gameState==='fly'){
+    // Yaw: rotate around ship's up axis
+    const qY=new THREE.Quaternion().setFromAxisAngle(getShipUp(),-e.movementX*.002);
+    shipQ.multiplyQuaternions(qY,shipQ).normalize();
+    // Pitch: rotate around ship's right axis
+    const right=new THREE.Vector3(1,0,0).applyQuaternion(shipQ).normalize();
+    const qP=new THREE.Quaternion().setFromAxisAngle(right,-e.movementY*.002);
+    shipQ.multiplyQuaternions(qP,shipQ).normalize();
+  } else if(gameState==='walk'||gameState==='float'){
     let wUp;
     if(gameState==='walk'){
       charPivot.updateWorldMatrix(true,false);
@@ -1090,7 +1098,7 @@ addEventListener('mousemove',e=>{
     }
     const q=new THREE.Quaternion().setFromAxisAngle(wUp,-e.movementX*.003);
     camFwd.applyQuaternion(q).addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
-    camElevation=Math.max(CAM_ELEV_MIN,Math.min(CAM_ELEV_MAX,camElevation+e.movementY*.003));
+    camElevation=Math.max(CAM_ELEV_MIN,Math.min(CAM_ELEV_MAX,camElevation-e.movementY*.003));
   }
 });
 
@@ -1285,7 +1293,7 @@ function handleRemotePlayer(payload){
 function handleShot(payload){
   if(payload.from===myId) return;
   const origin=new THREE.Vector3(payload.ox,payload.oy,payload.oz);
-  const vel=new THREE.Vector3(payload.dx,payload.dy,payload.dz).multiplyScalar(payload.spd);
+  const vel=new THREE.Vector3(payload.vx,payload.vy,payload.vz);
   const mesh=makeProjectileMesh(payload.color||0x44aaff);
   mesh.position.copy(origin); scene.add(mesh);
   visualProjs.push({mesh,pos:origin.clone(),vel,life:SHOT_LIFE});
@@ -1356,11 +1364,11 @@ function broadcastState(){
   });
 }
 
-function broadcastShot(origin,dir,spd,color,type){
+function broadcastShot(origin,vel,color,type){
   if(!channel||!myId) return;
   channel.send({type:'broadcast',event:'shot',
     payload:{from:myId,ox:origin.x,oy:origin.y,oz:origin.z,
-      dx:dir.x,dy:dir.y,dz:dir.z,spd,color,type}});
+      vx:vel.x,vy:vel.y,vz:vel.z,color,type}});
 }
 function broadcastHit(toId,dmg,type){
   if(!channel||!myId) return;
@@ -1426,10 +1434,9 @@ function loop(){
     ?(K['KeyW']||K['ArrowUp']?1:K['KeyS']||K['ArrowDown']?-1:-JOY.ly):0;
   const moveRight=(gameState==='walk'||gameState==='float')
     ?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
-  const thrust=gameState==='fly'?(K['Space']?1:-JOY.ly):0;
-  const yaw   =gameState==='fly'?(K['KeyA']?1:K['KeyD']?-1:JOY.lx):0;
-  const pitch =gameState==='fly'?(K['KeyW']?1:K['KeyS']?-1:JOY.ry):0;
-  const roll  =gameState==='fly'?(K['KeyQ']?1:K['KeyE']?-1:-JOY.rx):0;
+  const thrustFB=gameState==='fly'?(K['KeyW']?1:K['KeyS']?-1:-JOY.ly):0;
+  const strafeRL=gameState==='fly'?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
+  const roll    =gameState==='fly'?(K['KeyQ']?1:K['KeyE']?-1:-JOY.rx):0;
 
   nbodyStep(dt);
   updateTails();
@@ -1466,14 +1473,14 @@ function loop(){
       document.getElementById('hint').textContent=
         'click to aim · WASD·move · SHIFT·run · E·board · click·shoot · ESC·unlock';
   } else if(gameState==='fly'){
-    shipFlyStep(dt,thrust,yaw,pitch,roll);
+    shipFlyStep(dt,thrustFB,strafeRL,roll);
     flyCamera();
-    if(thrust!==0) refreshOrbits();
+    if(thrustFB!==0||strafeRL!==0) refreshOrbits();
     else{orbitTimer-=dt;if(orbitTimer<=0){orbitTimer=3;refreshOrbits();}}
     const canLand=PLANET_DEFS.some(pd=>shipPos.distanceTo(pd.physPos)<pd.R+3.5);
     document.getElementById('hint').textContent=canLand
       ?'[ F ] land'
-      :'SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  CLICK·shoot  F·land';
+      :'WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F·land';
   } else { // float
     floatStep(dt);
     floatCamera();
