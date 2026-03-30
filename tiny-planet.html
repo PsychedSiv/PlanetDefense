@@ -477,27 +477,40 @@ const WALK_SPEED=(2*Math.PI*3.5)/30, RUN_MULT=3;
 let isRunning=false, stepT=0;
 let charFwd=new THREE.Vector3(0,0,1);
 
-function walkStep(dt, moveFwd, turnDir){
+// TPS camera state
+let camFwd=new THREE.Vector3(0,0,1);
+let camElevation=0.35;
+const CAM_ELEV_MIN=0.05, CAM_ELEV_MAX=1.35;
+
+function walkStep(dt, moveFwd, moveRight){
   const speed=WALK_SPEED*(isRunning?RUN_MULT:1)*dt;
   const up=charPivot.position.clone().normalize();
-  if(turnDir){
-    const q=new THREE.Quaternion().setFromAxisAngle(up,-turnDir*2.2*dt);
-    charFwd.applyQuaternion(q);
-    charFwd.addScaledVector(up,-charFwd.dot(up)).normalize();
-  }
-  if(moveFwd){
-    const ang=(speed/activePD.R)*moveFwd;
-    const c=Math.cos(ang),s=Math.sin(ang);
-    const nUp=up.clone().multiplyScalar(c).addScaledVector(charFwd,s).normalize();
-    const nFwd=charFwd.clone().multiplyScalar(c).addScaledVector(up,-s).normalize();
-    charPivot.position.copy(nUp).multiplyScalar(activePD.baseR+.02);
-    charFwd.copy(nFwd).addScaledVector(nUp,-nFwd.dot(nUp)).normalize();
+
+  // Project camera forward onto planet surface for movement reference
+  const cfwd=camFwd.clone().addScaledVector(up,-camFwd.dot(up)).normalize();
+  const cright=cfwd.clone().cross(up).normalize();
+
+  const moving=moveFwd||moveRight;
+  if(moving){
+    const md=new THREE.Vector3();
+    if(moveFwd)  md.addScaledVector(cfwd,moveFwd);
+    if(moveRight) md.addScaledVector(cright,-moveRight);
+    if(md.lengthSq()>.0001){
+      md.normalize();
+      charFwd.copy(md).addScaledVector(up,-md.dot(up)).normalize();
+      const ang=(speed/activePD.R);
+      const c=Math.cos(ang),s=Math.sin(ang);
+      const nUp=up.clone().multiplyScalar(c).addScaledVector(md,s).normalize();
+      const nFwd=md.clone().multiplyScalar(c).addScaledVector(up,-s).normalize();
+      charPivot.position.copy(nUp).multiplyScalar(activePD.baseR+.02);
+      charFwd.copy(nFwd).addScaledVector(nUp,-nFwd.dot(nUp)).normalize();
+    }
   }
   const n=charPivot.position.clone().normalize();
   const f=charFwd.clone().addScaledVector(n,-charFwd.dot(n)).normalize();
   const r=f.clone().cross(n).normalize();
   charPivot.setRotationFromMatrix(new THREE.Matrix4().makeBasis(r,n,f.clone().negate()));
-  if(moveFwd){
+  if(moving){
     stepT+=dt*(isRunning?18:8);
     const sw=Math.sin(stepT)*(isRunning?.11:.06);
     charMesh.children.forEach(c=>{
@@ -541,6 +554,7 @@ function enterShip(){
   shipPivot.position.copy(shipPos);
   charMesh.visible=false;
   gameState='fly';
+  if(document.pointerLockElement) document.exitPointerLock();
   setTimeout(refreshOrbits,100);
   updateUI();
 }
@@ -583,6 +597,8 @@ function landOn(pd){
   charMesh.visible=true;
   ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
   PLANET_TAILS.forEach(l=>l.visible=false); SHIP_TAIL.visible=false;
+  // Re-align camFwd to character's new facing direction after landing
+  camFwd.copy(charFwd);
   gameState='walk';
   updateUI();
 }
@@ -590,16 +606,22 @@ function landOn(pd){
 // ═══════════════════════════════════════════════════════════
 //  CAMERA
 // ═══════════════════════════════════════════════════════════
-const CAM_BACK=2.6,CAM_UP=1.1,CFB=5,CFU=1.8;
+const CFB=5,CFU=1.8;
 const _cwp=new THREE.Vector3();
 
 function walkCamera(){
   charPivot.updateWorldMatrix(true,false);
   const me=charPivot.matrixWorld.elements;
-  const wUp=new THREE.Vector3(me[4],me[5],me[6]);
-  const wBk=new THREE.Vector3(me[8],me[9],me[10]);
+  const wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
   charPivot.getWorldPosition(_cwp);
-  camera.position.copy(_cwp).addScaledVector(wBk,CAM_BACK).addScaledVector(wUp,CAM_UP);
+  // Re-orthogonalize camFwd against current planet normal each frame
+  camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
+  // Camera sits behind character at azimuth defined by camFwd, tilted up by camElevation
+  const camBack=camFwd.clone().negate();
+  const CAM_DIST=2.6;
+  camera.position.copy(_cwp)
+    .addScaledVector(camBack, CAM_DIST*Math.cos(camElevation))
+    .addScaledVector(wUp,     CAM_DIST*Math.sin(camElevation));
   camera.up.copy(wUp);
   camera.lookAt(_cwp.clone().addScaledVector(wUp,.35));
 }
@@ -713,7 +735,7 @@ function updateUI(){
   document.getElementById('bDep2').style.display =fly?'flex':'none';
   document.getElementById('hint').textContent=fly
     ?' SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  RClick·mine  LClick·deposit  F·land '
-    :' WASD·move  Shift·run  click·dig  R·deposit  E·board ';
+    :' click to aim  WASD·move  Shift·run  click·dig  R·deposit  E·board  ESC·unlock ';
 }
 updateUI();
 
@@ -728,8 +750,25 @@ addEventListener('keydown',e=>{
   e.preventDefault();
 });
 addEventListener('keyup',e=>K[e.code]=false);
-renderer.domElement.addEventListener('click',  e=>{ if(e.button===0){if(gameState==='fly')fireProj('deposit');else dig();} });
+renderer.domElement.addEventListener('click', e=>{
+  if(e.button===0){
+    if(gameState==='fly') fireProj('deposit');
+    else if(document.pointerLockElement===renderer.domElement) dig();
+    else if(gameReady) renderer.domElement.requestPointerLock();
+  }
+});
 renderer.domElement.addEventListener('contextmenu',e=>{ e.preventDefault();if(gameState==='fly')fireProj('mine'); });
+
+// TPS mouse look — only active when pointer is locked in walk mode
+addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==renderer.domElement||gameState!=='walk') return;
+  charPivot.updateWorldMatrix(true,false);
+  const me=charPivot.matrixWorld.elements;
+  const wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
+  const q=new THREE.Quaternion().setFromAxisAngle(wUp,-e.movementX*0.003);
+  camFwd.applyQuaternion(q).addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
+  camElevation=Math.max(CAM_ELEV_MIN,Math.min(CAM_ELEV_MAX,camElevation+e.movementY*0.003));
+});
 
 // Joysticks
 const JOY={lx:0,ly:0,rx:0,ry:0};
@@ -994,8 +1033,8 @@ function loop(){
 
   if(!gameReady){ renderer.render(scene,camera); return; }
 
-  const moveFwd=gameState==='walk'?(K['KeyW']||K['ArrowUp']?1:K['KeyS']||K['ArrowDown']?-1:-JOY.ly):0;
-  const turnDir=gameState==='walk'?(K['KeyA']||K['ArrowLeft']?-1:K['KeyD']||K['ArrowRight']?1:JOY.lx):0;
+  const moveFwd =gameState==='walk'?(K['KeyW']||K['ArrowUp']?1:K['KeyS']||K['ArrowDown']?-1:-JOY.ly):0;
+  const moveRight=gameState==='walk'?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
   const thrust =gameState==='fly'?(K['Space']?1:-JOY.ly):0;
   const yaw    =gameState==='fly'?(K['KeyA']?1:K['KeyD']?-1:JOY.lx):0;
   const pitch  =gameState==='fly'?(K['KeyW']?1:K['KeyS']?-1:JOY.ry):0;
@@ -1017,7 +1056,7 @@ function loop(){
   if(fxTimer>0){ fxTimer-=dt; if(fxTimer<=0)fxEl.style.opacity='0'; }
 
   if(gameState==='walk'){
-    walkStep(dt,moveFwd,turnDir);
+    walkStep(dt,moveFwd,moveRight);
     walkCamera();
     const cw=new THREE.Vector3(),sw=new THREE.Vector3();
     charPivot.getWorldPosition(cw);shipPivot.getWorldPosition(sw);
