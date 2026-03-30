@@ -2,45 +2,68 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Tiny Planet</title>
+<title>Planet Defense</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;overflow:hidden;font-family:'Courier New',monospace}
 canvas{display:block}
-#hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
-  font-size:11px;color:rgba(255,255,255,.4);letter-spacing:.12em;text-align:center;pointer-events:none}
-#label{position:fixed;top:14px;left:50%;transform:translateX(-50%);
-  font-family:Georgia,serif;font-size:13px;font-style:italic;
-  color:rgba(255,255,255,.2);letter-spacing:.22em;pointer-events:none}
-#inv{position:fixed;top:14px;right:16px;font-size:11px;
-  color:rgba(255,255,255,.6);line-height:2;pointer-events:none;text-align:right}
-#fx{position:fixed;top:48%;left:50%;transform:translate(-50%,-50%);
-  font-size:1.6rem;pointer-events:none;opacity:0;transition:opacity .2s}
+#label{position:fixed;top:14px;left:50%;transform:translateX(-50%);font-family:Georgia,serif;
+  font-size:13px;font-style:italic;color:rgba(255,255,255,.18);letter-spacing:.22em;pointer-events:none}
+#hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);font-size:11px;
+  color:rgba(255,255,255,.38);letter-spacing:.1em;text-align:center;pointer-events:none}
 #players-hud{position:fixed;top:14px;left:16px;font-size:11px;
-  color:rgba(255,255,255,.5);line-height:1.9;pointer-events:none}
-/* controls */
+  color:rgba(255,255,255,.5);line-height:2;pointer-events:none}
+#my-hud{position:fixed;top:14px;right:16px;font-size:11px;
+  color:rgba(255,255,255,.7);text-align:right;pointer-events:none;line-height:2}
+/* HP bars */
+#hp-wrap{position:fixed;bottom:50px;right:16px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.hprow{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.hplabel{font-size:9px;color:rgba(255,255,255,.45);letter-spacing:.08em;white-space:nowrap}
+.hpbar{width:100px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden}
+.hpfill{height:100%;border-radius:3px;transition:width .15s}
+#pawn-fill{background:linear-gradient(90deg,#44cc66,#88ff88);width:100%}
+#ship-fill{background:linear-gradient(90deg,#4488ff,#88ccff);width:100%}
+/* Crosshair */
+#xhair{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:22px;height:22px;pointer-events:none;display:none}
+#xhair::before,#xhair::after{content:'';position:absolute;background:rgba(255,255,255,.75);border-radius:1px}
+#xhair::before{width:2px;height:100%;left:50%;transform:translateX(-50%)}
+#xhair::after{height:2px;width:100%;top:50%;transform:translateY(-50%)}
+/* Kill feed */
+#killfeed{position:fixed;top:50px;right:16px;font-size:10px;pointer-events:none;
+  text-align:right;line-height:1.9}
+/* Flash overlay */
+#dmg-flash{position:fixed;inset:0;pointer-events:none;background:rgba(255,30,30,0);
+  transition:background .08s}
+#fx{position:fixed;top:46%;left:50%;transform:translate(-50%,-50%);
+  font-size:1.5rem;pointer-events:none;opacity:0;transition:opacity .18s;text-align:center}
+#respawn-hud{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:1.1rem;color:rgba(255,80,80,.9);pointer-events:none;display:none;
+  text-align:center;text-shadow:0 0 16px rgba(255,0,0,.5)}
+/* Touch controls */
 #ctrl{position:fixed;bottom:0;left:0;right:0;height:185px;pointer-events:none}
 .joy{position:absolute;width:130px;height:130px;pointer-events:all;touch-action:none}
 .jbase{position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15)}
-.jknob{position:absolute;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);top:50%;left:50%;transform:translate(-50%,-50%)}
-#jL{left:16px;bottom:16px} #jR{right:16px;bottom:16px;display:none}
+.jknob{position:absolute;width:50px;height:50px;border-radius:50%;
+  background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);
+  top:50%;left:50%;transform:translate(-50%,-50%)}
+#jL{left:16px;bottom:16px}
+#jR{right:16px;bottom:16px;display:none}
 .btn{position:absolute;pointer-events:all;touch-action:none;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:1.2rem;
-  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.8);cursor:pointer}
-.btn.on{background:rgba(255,255,255,.3)}
-#bBoard{right:20px;bottom:112px;width:54px;height:54px}
-#bDig  {right:86px; bottom:74px; width:48px;height:48px}
-#bDep  {right:20px; bottom:20px; width:48px;height:48px}
-#bRun  {right:150px;bottom:20px; width:48px;height:48px}
-#bLand {left:50%;bottom:26px;transform:translateX(-50%);width:58px;height:58px;display:none}
-#bMine {right:86px;bottom:130px;width:48px;height:48px;display:none}
-#bDep2 {right:20px;bottom:130px;width:48px;height:48px;display:none}
-/* login */
-#login-screen{position:fixed;inset:0;background:rgba(0,0,0,.92);
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.22);
+  color:rgba(255,255,255,.8);cursor:pointer;user-select:none}
+.btn.on{background:rgba(255,255,255,.28)}
+#bBoard {right:20px; bottom:112px;width:54px;height:54px}
+#bShoot {right:86px; bottom:74px; width:50px;height:50px}
+#bLand  {left:50%;bottom:28px;transform:translateX(-50%);width:56px;height:56px;display:none}
+#bThrust{right:152px;bottom:20px;width:50px;height:50px;display:none}
+/* Login */
+#login-screen{position:fixed;inset:0;background:rgba(0,0,0,.94);
   display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:18px}
 #login-screen h1{font-family:Georgia,serif;font-size:2rem;font-style:italic;
   color:rgba(255,255,255,.85);letter-spacing:.2em;font-weight:normal}
-#login-screen p{font-size:12px;color:rgba(255,255,255,.35);letter-spacing:.1em}
+#login-screen p{font-size:11px;color:rgba(255,255,255,.3);letter-spacing:.12em}
 #login-screen input{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
   color:#fff;padding:10px 20px;font-family:'Courier New',monospace;font-size:14px;
   letter-spacing:.1em;border-radius:4px;text-align:center;outline:none;width:220px}
@@ -54,38 +77,50 @@ canvas{display:block}
 </head>
 <body>
 <div id="login-screen">
-  <h1>tiny planet</h1>
-  <p>a small multiplayer world</p>
-  <input id="name-input" type="text" maxlength="16" placeholder="your name" autocomplete="off" spellcheck="false"/>
-  <button id="join-btn">join world</button>
+  <h1>planet defense</h1>
+  <p>shoot or be shot</p>
+  <input id="name-input" type="text" maxlength="16" placeholder="callsign"
+         autocomplete="off" spellcheck="false"/>
+  <button id="join-btn">launch</button>
   <div id="login-err"></div>
 </div>
-<div id="label">a small world</div>
-<div id="hint">…</div>
-<div id="inv"></div>
-<div id="fx"></div>
+
+<div id="label">planet defense</div>
 <div id="players-hud"></div>
+<div id="my-hud"></div>
+<div id="hp-wrap">
+  <div class="hprow"><span class="hplabel">SUIT</span><div class="hpbar"><div id="pawn-fill" class="hpfill"></div></div></div>
+  <div class="hprow" id="ship-row" style="display:none"><span class="hplabel">SHIP</span><div class="hpbar"><div id="ship-fill" class="hpfill"></div></div></div>
+</div>
+<div id="xhair"></div>
+<div id="killfeed"></div>
+<div id="hint">…</div>
+<div id="fx"></div>
+<div id="dmg-flash"></div>
+<div id="respawn-hud"></div>
+
 <div id="ctrl">
   <div id="jL" class="joy"><div class="jbase"></div><div id="jLk" class="jknob"></div></div>
   <div id="jR" class="joy"><div class="jbase"></div><div id="jRk" class="jknob"></div></div>
-  <div id="bBoard" class="btn">🚀</div><div id="bDig" class="btn">⛏️</div>
-  <div id="bDep"   class="btn">🪐</div><div id="bRun"  class="btn">🏃</div>
-  <div id="bLand"  class="btn" style="font-size:.9rem">🌍<br>land</div>
-  <div id="bMine"  class="btn">⛏️</div><div id="bDep2" class="btn">🪐</div>
+  <div id="bBoard"  class="btn">🚀</div>
+  <div id="bShoot"  class="btn">🔫</div>
+  <div id="bLand"   class="btn" style="font-size:.85rem">🌍<br><span style="font-size:.7rem">land</span></div>
+  <div id="bThrust" class="btn">▲</div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
 
 // ═══════════════════════════════════════════════════════════
-//  RENDERER
+//  RENDERER + SCENE + CAMERA
 // ═══════════════════════════════════════════════════════════
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene  = new THREE.Scene();
@@ -93,328 +128,310 @@ scene.background = new THREE.Color(0x01020a);
 const camera = new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.01,4000);
 
 // ═══════════════════════════════════════════════════════════
-//  STARS  (two-layer: bright nearby + distant faint)
+//  STARS
 // ═══════════════════════════════════════════════════════════
-function makeStars(count, rMin, rMax, size, opacity){
-  const pts=new Float32Array(count*3);
-  for(let i=0;i<count;i++){
-    const th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
-    const r=rMin+Math.random()*(rMax-rMin);
-    pts[i*3]=r*Math.sin(ph)*Math.cos(th);
-    pts[i*3+1]=r*Math.sin(ph)*Math.sin(th);
-    pts[i*3+2]=r*Math.cos(ph);
+(function(){
+  function mkStars(n,rMin,rMax,sz,op){
+    const pts=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+      const r=rMin+Math.random()*(rMax-rMin);
+      pts[i*3]=r*Math.sin(ph)*Math.cos(th);
+      pts[i*3+1]=r*Math.sin(ph)*Math.sin(th);
+      pts[i*3+2]=r*Math.cos(ph);
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:sz,sizeAttenuation:true,transparent:true,opacity:op})));
   }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
-  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size,sizeAttenuation:true,transparent:true,opacity})));
-}
-makeStars(3000, 300, 600, .6, .9);
-makeStars(5000, 600,1200, .3, .4);
+  mkStars(3000,300,600,.6,.9);
+  mkStars(5000,600,1200,.3,.4);
+})();
 
 // ═══════════════════════════════════════════════════════════
 //  GLSL HELPERS
 // ═══════════════════════════════════════════════════════════
-function makeAtmosphere(R, color, intensity){
-  const mat = new THREE.ShaderMaterial({
-    uniforms:{ c:{value:.35}, p:{value:4.5}, glowColor:{value:new THREE.Color(color)}, intensity:{value:intensity} },
-    vertexShader:`
-      varying vec3 vNormal;
-      varying vec3 vPos;
-      void main(){
-        vNormal = normalize(normalMatrix * normal);
-        vPos    = (modelViewMatrix * vec4(position,1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-      }`,
-    fragmentShader:`
-      uniform float c, p, intensity;
-      uniform vec3  glowColor;
-      varying vec3  vNormal, vPos;
-      void main(){
-        float rim = pow(c - dot(normalize(vNormal), normalize(-vPos)), p);
-        gl_FragColor = vec4(glowColor, rim * intensity);
-      }`,
-    side: THREE.BackSide,
-    blending: THREE.AdditiveBlending,
-    transparent: true,
-    depthWrite: false
+function makeAtmosphere(R,color,intensity){
+  const mat=new THREE.ShaderMaterial({
+    uniforms:{c:{value:.35},p:{value:4.5},glowColor:{value:new THREE.Color(color)},intensity:{value:intensity}},
+    vertexShader:`varying vec3 vNormal,vPos;
+      void main(){vNormal=normalize(normalMatrix*normal);vPos=(modelViewMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:`uniform float c,p,intensity;uniform vec3 glowColor;varying vec3 vNormal,vPos;
+      void main(){float rim=pow(c-dot(normalize(vNormal),normalize(-vPos)),p);gl_FragColor=vec4(glowColor,rim*intensity);}`,
+    side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false
   });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(R*1.18,32,32), mat);
-  return mesh;
+  return new THREE.Mesh(new THREE.SphereGeometry(R*1.18,32,32),mat);
 }
 
-const NOISE_GLSL = `
-  float hash(vec3 p){
-    p=fract(p*vec3(443.8975,397.2973,491.1871));
-    p+=dot(p,p.yzx+19.19); return fract((p.x+p.y)*p.z);
-  }
-  float noise(vec3 p){
-    vec3 i=floor(p), f=fract(p), u=f*f*(3.-2.*f);
-    return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),u.x),
-                   mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),u.x),u.y),
-               mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),u.x),
-                   mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),u.x),u.y),u.z);
-  }
-  float fbm(vec3 p){
-    return noise(p)*.5+noise(p*2.)*.25+noise(p*4.)*.125+noise(p*8.)*.0625;
-  }`;
+const NOISE_GLSL=`
+  float hash(vec3 p){p=fract(p*vec3(443.8975,397.2973,491.1871));p+=dot(p,p.yzx+19.19);return fract((p.x+p.y)*p.z);}
+  float noise(vec3 p){vec3 i=floor(p),f=fract(p),u=f*f*(3.-2.*f);
+    return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),u.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),u.x),u.y),
+               mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),u.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),u.x),u.y),u.z);}
+  float fbm(vec3 p){return noise(p)*.5+noise(p*2.)*.25+noise(p*4.)*.125+noise(p*8.)*.0625;}`;
 
-function makePlanetMat(colA, colB, colC, colD, specular){
+function makePlanetMat(colA,colB,colC,colD,spec){
   return new THREE.ShaderMaterial({
-    uniforms:{
-      colA:{value:new THREE.Color(colA)},
-      colB:{value:new THREE.Color(colB)},
-      colC:{value:new THREE.Color(colC)},
-      colD:{value:new THREE.Color(colD)},
-      specular:{value:specular||0.0},
-    },
-    vertexShader:`
-      varying vec3 vNormal;
-      varying vec3 vPos;
-      varying vec3 vWorld;
+    uniforms:{colA:{value:new THREE.Color(colA)},colB:{value:new THREE.Color(colB)},
+              colC:{value:new THREE.Color(colC)},colD:{value:new THREE.Color(colD)},specular:{value:spec||0}},
+    vertexShader:`varying vec3 vNormal,vPos,vWorld;
+      void main(){vNormal=normalize(normalMatrix*normal);vPos=(modelViewMatrix*vec4(position,1.)).xyz;
+        vWorld=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:`${NOISE_GLSL}
+      uniform vec3 colA,colB,colC,colD;uniform float specular;varying vec3 vNormal,vPos,vWorld;
       void main(){
-        vNormal = normalize(normalMatrix * normal);
-        vPos    = (modelViewMatrix * vec4(position,1.0)).xyz;
-        vWorld  = (modelMatrix * vec4(position,1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-      }`,
-    fragmentShader:`
-      ${NOISE_GLSL}
-      uniform vec3  colA,colB,colC,colD;
-      uniform float specular;
-      varying vec3  vNormal,vPos,vWorld;
-      void main(){
-        vec3 n = normalize(vNormal);
-        vec3 viewDir = normalize(-vPos);
-        vec3 sunWorld = -vWorld;
-        vec3 sunView  = normalize((viewMatrix * vec4(sunWorld,0.0)).xyz);
-        float nDotL   = max(dot(n, sunView), 0.0);
-        float h = fbm(normalize(vWorld)*2.8);
+        vec3 n=normalize(vNormal),viewDir=normalize(-vPos);
+        vec3 sunView=normalize((viewMatrix*vec4(-vWorld,0.)).xyz);
+        float nDotL=max(dot(n,sunView),0.);
+        float h=fbm(normalize(vWorld)*2.8);
         vec3 col;
-        if(h < 0.35)      col = colA;
-        else if(h < 0.50) col = mix(colA,colB,(h-.35)/.15);
-        else if(h < 0.70) col = mix(colB,colC,(h-.50)/.20);
-        else               col = mix(colC,colD,(h-.70)/.30);
-        float lat = abs(normalize(vWorld).y);
-        if(lat > 0.75) col = mix(col, vec3(.92,.96,1.0), smoothstep(.75,.9,lat));
-        float ambient = 0.10;
-        float term    = smoothstep(0.0, 0.08, nDotL);
-        vec3 lit = col * (ambient + nDotL * .85) * (.3 + .7*term);
-        if(h < 0.35 && specular > 0.0){
-          vec3 halfDir = normalize(sunView + viewDir);
-          float spec   = pow(max(dot(n,halfDir),0.0), 48.0) * specular * nDotL;
-          lit += vec3(.55,.75,1.0) * spec;
-        }
-        gl_FragColor = vec4(lit, 1.0);
-      }`
+        if(h<.35)col=colA;else if(h<.50)col=mix(colA,colB,(h-.35)/.15);
+        else if(h<.70)col=mix(colB,colC,(h-.50)/.20);else col=mix(colC,colD,(h-.70)/.30);
+        float lat=abs(normalize(vWorld).y);
+        if(lat>.75)col=mix(col,vec3(.92,.96,1.),smoothstep(.75,.9,lat));
+        float term=smoothstep(0.,.08,nDotL);
+        vec3 lit=col*(.10+nDotL*.85)*(.3+.7*term);
+        if(h<.35&&specular>0.){vec3 hd=normalize(sunView+viewDir);lit+=vec3(.55,.75,1.)*pow(max(dot(n,hd),0.),48.)*specular*nDotL;}
+        gl_FragColor=vec4(lit,1.);}`
   });
 }
 
 // ═══════════════════════════════════════════════════════════
 //  SUN
 // ═══════════════════════════════════════════════════════════
-const SUN_R = 6;
-const sunMat = new THREE.ShaderMaterial({
-  uniforms:{ time:{value:0} },
-  vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-  fragmentShader:`
-    ${NOISE_GLSL}
-    uniform float time;
-    varying vec3 vP;
-    void main(){
-      vec3 n=normalize(vP);
-      float f=fbm(n*3.+time*.15);
-      float f2=fbm(n*6.-time*.08);
-      vec3 col=mix(vec3(1.,.6,.05),vec3(1.,.95,.2),f);
-      col=mix(col,vec3(.9,.3,.0),f2*.4);
-      gl_FragColor=vec4(col,1.);
-    }`
+const SUN_R=6;
+const sunMat=new THREE.ShaderMaterial({
+  uniforms:{time:{value:0}},
+  vertexShader:`varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`${NOISE_GLSL}uniform float time;varying vec3 vP;
+    void main(){vec3 n=normalize(vP);float f=fbm(n*3.+time*.15),f2=fbm(n*6.-time*.08);
+      vec3 col=mix(vec3(1.,.6,.05),vec3(1.,.95,.2),f);col=mix(col,vec3(.9,.3,.0),f2*.4);
+      gl_FragColor=vec4(col,1.);}`
 });
-const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(SUN_R,48,48),sunMat);
+const sunMesh=new THREE.Mesh(new THREE.SphereGeometry(SUN_R,48,48),sunMat);
 scene.add(sunMesh);
-
 [[1.25,0xffaa00,.22],[1.55,0xff6600,.10],[2.0,0xff3300,.04]].forEach(([s,c,o])=>{
-  const m=new THREE.Mesh(new THREE.SphereGeometry(SUN_R*s,24,24),
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(SUN_R*s,24,24),
     new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,side:THREE.BackSide,
-      blending:THREE.AdditiveBlending,depthWrite:false}));
-  scene.add(m);
+      blending:THREE.AdditiveBlending,depthWrite:false})));
 });
-
-const sunLight = new THREE.PointLight(0xfff4e0,2.2,0);
-scene.add(sunLight);
+const sunLight=new THREE.PointLight(0xfff4e0,2.2,0); scene.add(sunLight);
 scene.add(new THREE.AmbientLight(0x0d1a33,.6));
 
 // ═══════════════════════════════════════════════════════════
 //  PLANETS
 // ═══════════════════════════════════════════════════════════
-const GM_SUN = 120;
-
-const PLANET_DEFS = [
-  { name:'p1', label:'🟢 green',   R:3.5, dist:28, yi:0,  angle:0,
-    colA:0x1a5fa8, colB:0xd4a96a, colC:0x5a9e60, colD:0xeef6ff, spec:0.6,
-    atmoColor:0x4488ff, atmoI:.8, trailCol:0x44aaff },
-  { name:'p2', label:'🔴 desert',  R:2.8, dist:48, yi:3,  angle:Math.PI*.4,
-    colA:0xa03318, colB:0xd97a30, colC:0xe8b86a, colD:0xffe8cc, spec:0,
-    atmoColor:0xff6622, atmoI:.5, trailCol:0xff6644 },
-  { name:'p3', label:'🔵 ice',     R:2.0, dist:65, yi:-2, angle:Math.PI*.75,
-    colA:0x224466, colB:0x5588bb, colC:0x99ccee, colD:0xddeeff, spec:0.3,
-    atmoColor:0x88ccff, atmoI:.6, trailCol:0x88ccff },
-  { name:'p4', label:'🟣 giant',   R:4.2, dist:90, yi:5,  angle:Math.PI*1.1,
-    colA:0x553388, colB:0x7744aa, colC:0xbb88ee, colD:0xeeddff, spec:0,
-    atmoColor:0xaa66ff, atmoI:.7, trailCol:0xcc88ff },
-  { name:'p5', label:'🟡 toxic',   R:1.6, dist:118,yi:-4, angle:Math.PI*1.6,
-    colA:0x334400, colB:0x667722, colC:0xaacc22, colD:0xeeff44, spec:0,
-    atmoColor:0xaaff00, atmoI:.4, trailCol:0xccff44 },
+const GM_SUN=120;
+const PLANET_DEFS=[
+  {name:'p1',label:'green world', R:3.5,dist:28,yi:0, angle:0,
+   colA:0x1a5fa8,colB:0xd4a96a,colC:0x5a9e60,colD:0xeef6ff,spec:.6,atmoColor:0x4488ff,atmoI:.8,trailCol:0x44aaff},
+  {name:'p2',label:'desert',      R:2.8,dist:48,yi:3, angle:Math.PI*.4,
+   colA:0xa03318,colB:0xd97a30,colC:0xe8b86a,colD:0xffe8cc,spec:0, atmoColor:0xff6622,atmoI:.5,trailCol:0xff6644},
+  {name:'p3',label:'ice world',   R:2.0,dist:65,yi:-2,angle:Math.PI*.75,
+   colA:0x224466,colB:0x5588bb,colC:0x99ccee,colD:0xddeeff,spec:.3,atmoColor:0x88ccff,atmoI:.6,trailCol:0x88ccff},
+  {name:'p4',label:'giant',       R:4.2,dist:90,yi:5, angle:Math.PI*1.1,
+   colA:0x553388,colB:0x7744aa,colC:0xbb88ee,colD:0xeeddff,spec:0, atmoColor:0xaa66ff,atmoI:.7,trailCol:0xcc88ff},
+  {name:'p5',label:'toxic',       R:1.6,dist:118,yi:-4,angle:Math.PI*1.6,
+   colA:0x334400,colB:0x667722,colC:0xaacc22,colD:0xeeff44,spec:0, atmoColor:0xaaff00,atmoI:.4,trailCol:0xccff44},
 ];
 
 PLANET_DEFS.forEach(pd=>{
-  pd.physPos = new THREE.Vector3(
-    Math.cos(pd.angle)*pd.dist, pd.yi, Math.sin(pd.angle)*pd.dist);
-  const v = Math.sqrt(GM_SUN/pd.dist);
-  pd.vel = new THREE.Vector3(-Math.sin(pd.angle)*v, 0, Math.cos(pd.angle)*v);
-  pd.gm  = pd.R * 0.35;
-  pd.baseR = pd.R;
-
-  pd.mesh = new THREE.Mesh(new THREE.SphereGeometry(pd.R,64,64), makePlanetMat(pd.colA,pd.colB,pd.colC,pd.colD,pd.spec));
-  pd.mesh.castShadow = true;
-  pd.mesh.receiveShadow = true;
-  pd.atmo = makeAtmosphere(pd.R, pd.atmoColor, pd.atmoI);
-  pd.pivot = new THREE.Object3D();
-  pd.pivot.add(pd.mesh);
-  pd.pivot.add(pd.atmo);
+  pd.physPos=new THREE.Vector3(Math.cos(pd.angle)*pd.dist,pd.yi,Math.sin(pd.angle)*pd.dist);
+  const v=Math.sqrt(GM_SUN/pd.dist);
+  pd.vel=new THREE.Vector3(-Math.sin(pd.angle)*v,0,Math.cos(pd.angle)*v);
+  pd.gm=pd.R*.35; pd.baseR=pd.R;
+  pd.mesh=new THREE.Mesh(new THREE.SphereGeometry(pd.R,64,64),makePlanetMat(pd.colA,pd.colB,pd.colC,pd.colD,pd.spec));
+  pd.mesh.castShadow=true; pd.mesh.receiveShadow=true;
+  pd.atmo=makeAtmosphere(pd.R,pd.atmoColor,pd.atmoI);
+  pd.pivot=new THREE.Object3D();
+  pd.pivot.add(pd.mesh); pd.pivot.add(pd.atmo);
   pd.pivot.position.copy(pd.physPos);
   scene.add(pd.pivot);
-
   if(pd.name==='p2'||pd.name==='p4'){
-    const ringMat=new THREE.MeshBasicMaterial({
-      color:pd.name==='p2'?0xc8a87a:0xaa88cc,
+    const rMat=new THREE.MeshBasicMaterial({color:pd.name==='p2'?0xc8a87a:0xaa88cc,
       side:THREE.DoubleSide,transparent:true,opacity:.45});
-    const ring=new THREE.Mesh(new THREE.RingGeometry(pd.R*1.35,pd.R*2.1,64),ringMat);
-    ring.rotation.x = pd.name==='p2'?Math.PI*.38:Math.PI*.3;
+    const ring=new THREE.Mesh(new THREE.RingGeometry(pd.R*1.35,pd.R*2.1,64),rMat);
+    ring.rotation.x=pd.name==='p2'?Math.PI*.38:Math.PI*.3;
     pd.pivot.add(ring);
   }
 });
 
-// Scatter trees & houses on planet 1
-const P1=PLANET_DEFS[0];
-function placeOnPivot(pivot,R,norm,obj){
-  obj.position.copy(norm.clone().normalize().multiplyScalar(R));
-  obj.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),norm.clone().normalize());
-  pivot.add(obj);
-}
-{
+// Decorations on p1
+(function(){
+  const P1=PLANET_DEFS[0];
+  function placeOn(pivot,R,norm,obj){
+    obj.position.copy(norm.clone().normalize().multiplyScalar(R));
+    obj.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),norm.clone().normalize());
+    pivot.add(obj);
+  }
   let s=42; const rng=()=>{s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/0xffffffff;};
-  const leafMat=new THREE.MeshLambertMaterial({color:0x2d7a3a});
-  const trunkMat=new THREE.MeshLambertMaterial({color:0x7a4a20});
+  const leafM=new THREE.MeshLambertMaterial({color:0x2d7a3a});
+  const trunkM=new THREE.MeshLambertMaterial({color:0x7a4a20});
   for(let i=0;i<30;i++){
     const th=rng()*Math.PI*2,ph=rng()*Math.PI;
-    if(ph<.28||ph>2.85) continue;
+    if(ph<.28||ph>2.85)continue;
     const n=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th));
     const g=new THREE.Group();
-    const tr=new THREE.Mesh(new THREE.CylinderGeometry(.022,.038,.22,6),trunkMat); tr.position.y=.11; g.add(tr);
+    const tr=new THREE.Mesh(new THREE.CylinderGeometry(.022,.038,.22,6),trunkM); tr.position.y=.11; g.add(tr);
     [[.44,.28],[.60,.22],[.72,.16]].forEach(([y,rt])=>{
-      const c=new THREE.Mesh(new THREE.ConeGeometry(rt,rt*1.8,7),leafMat); c.position.y=y; g.add(c);
+      const c=new THREE.Mesh(new THREE.ConeGeometry(rt,rt*1.8,7),leafM); c.position.y=y; g.add(c);
     });
-    placeOnPivot(P1.pivot,P1.R,n,g);
+    placeOn(P1.pivot,P1.R,n,g);
   }
-  const wallMat=new THREE.MeshLambertMaterial({color:0xf0e0c8});
-  const roofMat=new THREE.MeshLambertMaterial({color:0xcc4433});
+  const wallM=new THREE.MeshLambertMaterial({color:0xf0e0c8});
+  const roofM=new THREE.MeshLambertMaterial({color:0xcc4433});
   [[1.2,.8],[1.5,2.4],[2.0,4.8]].forEach(([ph,th])=>{
     const n=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th));
     const g=new THREE.Group();
-    const base=new THREE.Mesh(new THREE.BoxGeometry(.24,.18,.24),wallMat); base.position.y=.09; g.add(base);
-    const roof=new THREE.Mesh(new THREE.ConeGeometry(.19,.17,4),roofMat); roof.position.y=.26; roof.rotation.y=Math.PI/4; g.add(roof);
-    placeOnPivot(P1.pivot,P1.R,n,g);
+    const base=new THREE.Mesh(new THREE.BoxGeometry(.24,.18,.24),wallM); base.position.y=.09; g.add(base);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(.19,.17,4),roofM); roof.position.y=.26; roof.rotation.y=Math.PI/4; g.add(roof);
+    placeOn(P1.pivot,P1.R,n,g);
   });
-}
+})();
 
 // ═══════════════════════════════════════════════════════════
-//  ASTRONAUT CHARACTER
+//  ASTRONAUT MODEL
 // ═══════════════════════════════════════════════════════════
 function makeAstronaut(){
-  const g = new THREE.Group();
-  const white   = new THREE.MeshPhongMaterial({color:0xdde8ee,shininess:40});
-  const darkGrey= new THREE.MeshPhongMaterial({color:0x334455,shininess:20});
-  const visor   = new THREE.MeshPhongMaterial({color:0x88aacc,shininess:120,transparent:true,opacity:.75,envMap:null,reflectivity:.8});
-  const orange  = new THREE.MeshPhongMaterial({color:0xff6622,shininess:30});
-  const darkSuit= new THREE.MeshPhongMaterial({color:0xaabbc8,shininess:25});
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(.095,.105,.22,12),white); torso.position.y=.18; g.add(torso);
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(.14,.10,.05),darkGrey); chest.position.set(0,.22,.10); g.add(chest);
-  const pack  = new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.08),darkSuit); pack.position.set(0,.20,-.11); g.add(pack);
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.042,.05,.055,10),white); neck.position.y=.31; g.add(neck);
-  const helm = new THREE.Mesh(new THREE.SphereGeometry(.095,20,20),white); helm.position.y=.435; g.add(helm);
-  const vis  = new THREE.Mesh(new THREE.SphereGeometry(.072,16,16),visor);
-  vis.position.set(0,.435,.045); vis.scale.set(1,.78,1); g.add(vis);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(.098,.008,8,24),darkGrey);
-  ring.position.y=.41; ring.rotation.x=Math.PI/2; g.add(ring);
+  const g=new THREE.Group();
+  const white=new THREE.MeshPhongMaterial({color:0xdde8ee,shininess:40});
+  const dkGrey=new THREE.MeshPhongMaterial({color:0x334455,shininess:20});
+  const visor=new THREE.MeshPhongMaterial({color:0x88aacc,shininess:120,transparent:true,opacity:.75});
+  const orange=new THREE.MeshPhongMaterial({color:0xff6622,shininess:30});
+  const suit=new THREE.MeshPhongMaterial({color:0xaabbc8,shininess:25});
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.095,.105,.22,12),white); torso.position.y=.18; g.add(torso);
+  const chest=new THREE.Mesh(new THREE.BoxGeometry(.14,.10,.05),dkGrey); chest.position.set(0,.22,.10); g.add(chest);
+  const pack=new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.08),suit); pack.position.set(0,.20,-.11); g.add(pack);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.042,.05,.055,10),white); neck.position.y=.31; g.add(neck);
+  const helm=new THREE.Mesh(new THREE.SphereGeometry(.095,20,20),white); helm.position.y=.435; g.add(helm);
+  const vis=new THREE.Mesh(new THREE.SphereGeometry(.072,16,16),visor); vis.position.set(0,.435,.045); vis.scale.set(1,.78,1); g.add(vis);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.098,.008,8,24),dkGrey); ring.position.y=.41; ring.rotation.x=Math.PI/2; g.add(ring);
   [-1,1].forEach(s=>{
     const sh=new THREE.Mesh(new THREE.SphereGeometry(.062,10,10),orange); sh.position.set(s*.16,.26,0); g.add(sh);
   });
   [-1,1].forEach((s,i)=>{
     const arm=new THREE.Mesh(new THREE.CylinderGeometry(.038,.042,.18,8),white);
-    arm.position.set(s*.185,.17,.01); arm.rotation.z = s*0.22;
-    arm.name = i===0?'armL':'armR'; g.add(arm);
-    const glove=new THREE.Mesh(new THREE.SphereGeometry(.046,8,8),darkGrey);
-    glove.position.set(s*.205,.08,.01); g.add(glove);
+    arm.position.set(s*.185,.17,.01); arm.rotation.z=s*.22; arm.name=i===0?'armL':'armR'; g.add(arm);
+    const glove=new THREE.Mesh(new THREE.SphereGeometry(.046,8,8),dkGrey); glove.position.set(s*.205,.08,.01); g.add(glove);
   });
   [-1,1].forEach((s,i)=>{
-    const thigh=new THREE.Mesh(new THREE.CylinderGeometry(.052,.048,.14,8),darkSuit);
+    const thigh=new THREE.Mesh(new THREE.CylinderGeometry(.052,.048,.14,8),suit);
     thigh.position.set(s*.065,.04,0); thigh.name=i===0?'thighL':'thighR'; g.add(thigh);
-    const shin =new THREE.Mesh(new THREE.CylinderGeometry(.044,.05,.13,8),white);
+    const shin=new THREE.Mesh(new THREE.CylinderGeometry(.044,.050,.13,8),white);
     shin.position.set(s*.063,-.09,0); shin.name=i===0?'shinL':'shinR'; g.add(shin);
-    const boot =new THREE.Mesh(new THREE.BoxGeometry(.07,.04,.11),darkGrey);
+    const boot=new THREE.Mesh(new THREE.BoxGeometry(.07,.04,.11),dkGrey);
     boot.position.set(s*.064,-.165,.015); g.add(boot);
   });
-  const belt=new THREE.Mesh(new THREE.CylinderGeometry(.108,.108,.032,12),orange);
-  belt.position.y=.08; g.add(belt);
+  const belt=new THREE.Mesh(new THREE.CylinderGeometry(.108,.108,.032,12),orange); belt.position.y=.08; g.add(belt);
   return g;
 }
 
 // ═══════════════════════════════════════════════════════════
-//  SPACESHIP
+//  SPACE FIGHTER SHIP  (-Z = forward, +Y = up)
 // ═══════════════════════════════════════════════════════════
 function makeShip(){
   const g=new THREE.Group();
-  const hull    = new THREE.MeshPhongMaterial({color:0xaabbcc,shininess:60});
-  const dark    = new THREE.MeshPhongMaterial({color:0x556677,shininess:30});
-  const glass   = new THREE.MeshPhongMaterial({color:0x88ddff,shininess:120,transparent:true,opacity:.7});
-  const thruster= new THREE.MeshPhongMaterial({color:0x445566,shininess:50});
-  const accent  = new THREE.MeshPhongMaterial({color:0xff8833,shininess:40});
-  const fuse=new THREE.Mesh(new THREE.CylinderGeometry(.17,.26,.75,12),hull); fuse.position.y=.38; g.add(fuse);
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(.17,.42,12),hull);         nose.position.y=.94; g.add(nose);
-  const cock=new THREE.Mesh(new THREE.SphereGeometry(.13,14,10),glass);       cock.position.y=.80; g.add(cock);
-  const bell=new THREE.Mesh(new THREE.CylinderGeometry(.18,.22,.12,12),thruster); bell.position.y=0; g.add(bell);
-  const nozzle=new THREE.Mesh(new THREE.TorusGeometry(.19,.018,8,20),accent); nozzle.position.y=-.005; g.add(nozzle);
+  const hull=new THREE.MeshPhongMaterial({color:0x7799bb,shininess:80});
+  const dark=new THREE.MeshPhongMaterial({color:0x223344,shininess:20});
+  const glass=new THREE.MeshPhongMaterial({color:0x55ccff,transparent:true,opacity:.75,shininess:200});
+  const accent=new THREE.MeshPhongMaterial({color:0xff6622,shininess:40});
+
+  // Fuselage (tapered, along Z)
+  const fuse=new THREE.Mesh(new THREE.CylinderGeometry(.13,.20,1.0,10),hull);
+  fuse.rotation.x=Math.PI/2; g.add(fuse);          // thin end → -Z (front), wide end → +Z (rear)
+
+  // Nose cone (tip at -Z)
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.13,.48,10),hull);
+  nose.rotation.x=Math.PI/2; nose.position.z=-.74; g.add(nose);
+
+  // Cockpit bubble
+  const cock=new THREE.Mesh(new THREE.SphereGeometry(.105,12,8),glass);
+  cock.scale.set(.92,.62,1.08); cock.position.set(0,.18,-.08); g.add(cock);
+
+  // Swept wings
   [-1,1].forEach(s=>{
-    const wing=new THREE.Mesh(new THREE.BoxGeometry(.6,.038,.32),hull);
-    wing.position.set(s*.42,.32,.04); wing.rotation.z=s*.08; g.add(wing);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.028,6,6),new THREE.MeshBasicMaterial({color:s>0?0xff2222:0x2222ff}));
-    tip.position.set(s*.73,.32,.04); g.add(tip);
-    const pod=new THREE.Mesh(new THREE.CylinderGeometry(.065,.08,.26,10),thruster);
-    pod.position.set(s*.6,.26,.04); g.add(pod);
-    const tg=new THREE.PointLight(s>0?0xff4400:0x4444ff,.0,1.5);
-    tg.position.set(s*.6,.1,.04); tg.name=s>0?'glowR':'glowL'; g.add(tg);
+    const w=new THREE.Mesh(new THREE.BoxGeometry(.58,.028,.44),hull);
+    w.position.set(s*.34,0,.12); w.rotation.y=s*.18; g.add(w);
+    // Winglet
+    const wl=new THREE.Mesh(new THREE.BoxGeometry(.03,.14,.16),hull);
+    wl.position.set(s*.65,.07,.18); g.add(wl);
+    // Tip nav-light
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.024,6,6),
+      new THREE.MeshBasicMaterial({color:s>0?0xff2222:0x2222ff}));
+    tip.position.set(s*.67,.14,.18); g.add(tip);
   });
+
+  // Engine block (rear)
+  const eng=new THREE.Mesh(new THREE.CylinderGeometry(.14,.18,.22,10),dark);
+  eng.rotation.x=Math.PI/2; eng.position.z=.61; g.add(eng);
+
+  // Nozzle ring
+  const noz=new THREE.Mesh(new THREE.TorusGeometry(.115,.016,8,20),accent);
+  noz.rotation.x=Math.PI/2; noz.position.z=.73; g.add(noz);
+
+  // Tail fins
   [-1,1].forEach(s=>{
-    const strut=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.18,6),dark);
-    strut.rotation.z=s*.55; strut.position.set(s*.19,.05,0); g.add(strut);
-    const pad=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.02,8),dark);
-    pad.position.set(s*.25,-.04,0); g.add(pad);
+    const fin=new THREE.Mesh(new THREE.BoxGeometry(.028,.22,.26),hull);
+    fin.position.set(s*.10,.12,.38); fin.rotation.z=s*.15; g.add(fin);
   });
-  const mainGlow=new THREE.PointLight(0x44aaff,0,5); mainGlow.name='glow'; g.add(mainGlow);
+
+  // Landing struts
+  [-1,1].forEach(s=>{
+    const st=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.2,6),dark);
+    st.position.set(s*.13,-.12,.14); st.rotation.z=s*.28; g.add(st);
+    const pad=new THREE.Mesh(new THREE.CylinderGeometry(.042,.042,.02,8),dark);
+    pad.position.set(s*.19,-.22,.14); g.add(pad);
+  });
+
+  // Lights
+  const mainGlow=new THREE.PointLight(0x44aaff,0,5); mainGlow.name='glow'; mainGlow.position.z=.78; g.add(mainGlow);
+  [-1,1].forEach(s=>{
+    const gl=new THREE.PointLight(s>0?0xff4400:0x4444ff,0,1.8);
+    gl.position.set(s*.67,.14,.18); gl.name=s>0?'glowR':'glowL'; g.add(gl);
+  });
+
   return g;
+}
+
+// Remote player simplified meshes
+function makeRemoteAstronaut(color){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshPhongMaterial({color,shininess:40});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.095,.105,.22,10),mat); body.position.y=.18; g.add(body);
+  const helm=new THREE.Mesh(new THREE.SphereGeometry(.095,14,14),mat); helm.position.y=.435; g.add(helm);
+  const vis=new THREE.Mesh(new THREE.SphereGeometry(.072,10,10),
+    new THREE.MeshPhongMaterial({color:0x88aacc,transparent:true,opacity:.7,shininess:80}));
+  vis.position.set(0,.435,.045); vis.scale.set(1,.78,1); g.add(vis);
+  [-1,1].forEach(s=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(.044,.044,.14,7),mat);l.position.set(s*.065,.04,0);g.add(l);});
+  return g;
+}
+function makeRemoteShip(color){
+  const g=new THREE.Group(); const mat=new THREE.MeshPhongMaterial({color,shininess:60});
+  const fuse=new THREE.Mesh(new THREE.CylinderGeometry(.13,.20,1.0,8),mat); fuse.rotation.x=Math.PI/2; g.add(fuse);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.13,.48,8),mat); nose.rotation.x=Math.PI/2; nose.position.z=-.74; g.add(nose);
+  [-1,1].forEach(s=>{const w=new THREE.Mesh(new THREE.BoxGeometry(.58,.028,.44),mat);w.position.set(s*.34,0,.12);w.rotation.y=s*.18;g.add(w);});
+  return g;
+}
+
+function makeNameLabel(name,color){
+  const cv=document.createElement('canvas'); cv.width=256; cv.height=64;
+  const ctx=cv.getContext('2d');
+  ctx.font='bold 26px Courier New'; ctx.fillStyle=`#${color.toString(16).padStart(6,'0')}`;
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(name,128,32);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));
+  sp.scale.set(1.2,.3,1); sp.position.y=.9; return sp;
 }
 
 // ═══════════════════════════════════════════════════════════
 //  SCENE GRAPH
 // ═══════════════════════════════════════════════════════════
-const charMesh  = makeAstronaut();
-const charPivot = new THREE.Object3D(); charPivot.add(charMesh);
-const shipMesh  = makeShip();
-const shipPivot = new THREE.Object3D(); shipPivot.add(shipMesh);
+const charMesh =makeAstronaut();
+const charPivot=new THREE.Object3D(); charPivot.add(charMesh);
+const shipMesh =makeShip();
+const shipPivot=new THREE.Object3D(); shipPivot.add(shipMesh);
+let activePD=PLANET_DEFS[0];
 
-let activePD = PLANET_DEFS[0];
-
-function attachToPlanet(anchor, pd, normalLocal, gap=0.02){
+function attachToPlanet(anchor,pd,normalLocal,gap=0.02){
   if(anchor.parent) anchor.parent.remove(anchor);
   pd.pivot.add(anchor);
   const n=normalLocal.clone().normalize();
@@ -422,110 +439,101 @@ function attachToPlanet(anchor, pd, normalLocal, gap=0.02){
   let ref=new THREE.Vector3(0,0,1);
   if(Math.abs(n.dot(ref))>.99) ref.set(1,0,0);
   const right=ref.clone().cross(n).normalize();
-  const fwd  =n.clone().cross(right).normalize();
+  const fwd=n.clone().cross(right).normalize();
   anchor.setRotationFromMatrix(new THREE.Matrix4().makeBasis(right,n,fwd.clone().negate()));
 }
-
-attachToPlanet(charPivot, activePD, new THREE.Vector3(0,1,0));
-attachToPlanet(shipPivot, activePD, new THREE.Vector3(.7,.7,.1).normalize(), 0.01);
+attachToPlanet(charPivot,activePD,new THREE.Vector3(0,1,0));
+attachToPlanet(shipPivot,activePD,new THREE.Vector3(.7,.7,.1).normalize(),.01);
 
 // ═══════════════════════════════════════════════════════════
-//  VELOCITY VERLET N-BODY
+//  N-BODY VELOCITY VERLET
 // ═══════════════════════════════════════════════════════════
-function gravAccel(bodies, idx){
+function gravAccel(bodies,idx){
   const p=bodies[idx].pos;
-  const dx0=-p.x, dy0=-p.y, dz0=-p.z;
-  const r2sun=Math.max(dx0*dx0+dy0*dy0+dz0*dz0,1);
-  const rs=Math.sqrt(r2sun), f0=GM_SUN/(r2sun*rs);
-  let ax=dx0*f0, ay=dy0*f0, az=dz0*f0;
+  const r2s=Math.max(p.x*p.x+p.y*p.y+p.z*p.z,1), rs=Math.sqrt(r2s), f0=GM_SUN/(r2s*rs);
+  let ax=-p.x*f0, ay=-p.y*f0, az=-p.z*f0;
   bodies.forEach((b,j)=>{
-    if(j===idx) return;
-    const dx=b.pos.x-p.x, dy=b.pos.y-p.y, dz=b.pos.z-p.z;
-    const r2=Math.max(dx*dx+dy*dy+dz*dz,1);
-    const rs2=Math.sqrt(r2), f=b.gm/(r2*rs2);
+    if(j===idx)return;
+    const dx=b.pos.x-p.x,dy=b.pos.y-p.y,dz=b.pos.z-p.z;
+    const r2=Math.max(dx*dx+dy*dy+dz*dz,1),rs2=Math.sqrt(r2),f=b.gm/(r2*rs2);
     ax+=dx*f; ay+=dy*f; az+=dz*f;
   });
   return {x:ax,y:ay,z:az};
 }
-
-function verlet(bodies, dt){
+function verlet(bodies,dt){
   const a0=bodies.map((_,i)=>gravAccel(bodies,i));
-  bodies.forEach((b,i)=>{
-    b.pos.x+=b.vel.x*dt+.5*a0[i].x*dt*dt;
-    b.pos.y+=b.vel.y*dt+.5*a0[i].y*dt*dt;
-    b.pos.z+=b.vel.z*dt+.5*a0[i].z*dt*dt;
-  });
+  bodies.forEach((b,i)=>{b.pos.x+=b.vel.x*dt+.5*a0[i].x*dt*dt;b.pos.y+=b.vel.y*dt+.5*a0[i].y*dt*dt;b.pos.z+=b.vel.z*dt+.5*a0[i].z*dt*dt;});
   const a1=bodies.map((_,i)=>gravAccel(bodies,i));
-  bodies.forEach((b,i)=>{
-    b.vel.x+=.5*(a0[i].x+a1[i].x)*dt;
-    b.vel.y+=.5*(a0[i].y+a1[i].y)*dt;
-    b.vel.z+=.5*(a0[i].z+a1[i].z)*dt;
-  });
+  bodies.forEach((b,i)=>{b.vel.x+=.5*(a0[i].x+a1[i].x)*dt;b.vel.y+=.5*(a0[i].y+a1[i].y)*dt;b.vel.z+=.5*(a0[i].z+a1[i].z)*dt;});
 }
+const planetBodies=PLANET_DEFS.map(pd=>({pos:pd.physPos,vel:pd.vel,gm:pd.gm}));
 
-const planetBodies = PLANET_DEFS.map(pd=>({pos:pd.physPos, vel:pd.vel, gm:pd.gm, pd}));
-
-// ── Physics host: the player with the lexicographically smallest ID owns the
-//    planet simulation.  Others lerp toward the host's broadcasted positions.
-let isPhysicsHost = true;   // true until another player connects
-let planetSyncAge = Infinity; // seconds since last received planet sync
+// ── Physics host: lexicographically lowest player ID runs the planet simulation
+let isPhysicsHost=true;
+let planetSyncAge=Infinity; // seconds since last remote planet sync received
 
 function updatePhysicsHostRole(){
-  const otherIds = Object.keys(remotePlayers);
-  if(otherIds.length === 0){ isPhysicsHost = true; return; }
-  const allIds = [myId, ...otherIds].sort();
-  isPhysicsHost = (allIds[0] === myId);
+  const ids=Object.keys(remotePlayers);
+  if(ids.length===0){isPhysicsHost=true;return;}
+  const all=[myId,...ids].sort();
+  isPhysicsHost=(all[0]===myId);
 }
 
 function nbodyStep(dt){
-  planetSyncAge += dt;
-  if(!isPhysicsHost && planetSyncAge < 2.0){
-    // Non-host: smoothly follow the host's planet positions
+  planetSyncAge+=dt;
+  if(!isPhysicsHost && planetSyncAge<2.0){
     PLANET_DEFS.forEach(pd=>{
       if(pd.remoteTarget){
-        const prev = pd.physPos.clone();
-        pd.physPos.lerp(pd.remoteTarget, Math.min(1, dt * 6));
-        // Keep vel estimate so physics resumes correctly if host leaves
-        pd.vel.copy(pd.physPos).sub(prev).divideScalar(Math.max(dt, 0.001));
+        const prev=pd.physPos.clone();
+        pd.physPos.lerp(pd.remoteTarget,Math.min(1,dt*6));
+        pd.vel.copy(pd.physPos).sub(prev).divideScalar(Math.max(dt,.001));
       }
       pd.pivot.position.copy(pd.physPos);
     });
   } else {
-    verlet(planetBodies, dt);
+    verlet(planetBodies,dt);
     PLANET_DEFS.forEach(pd=>pd.pivot.position.copy(pd.physPos));
   }
 }
 
 // ═══════════════════════════════════════════════════════════
+//  PLAYER STATE
+// ═══════════════════════════════════════════════════════════
+const ASTRO_MAX_HP=100, SHIP_MAX_HP=100;
+let gameState='walk';   // 'walk' | 'fly' | 'float'
+let myHp=ASTRO_MAX_HP, myShipHp=SHIP_MAX_HP;
+let respawning=false, respawnTimer=0;
+let kills=0;
+
+// Float state (after ship is destroyed)
+let floatPos=new THREE.Vector3();
+let floatVel=new THREE.Vector3();
+const floatPhysBody={pos:floatPos,vel:floatVel,gm:0};
+
+// ═══════════════════════════════════════════════════════════
 //  WALKING
 // ═══════════════════════════════════════════════════════════
-const WALK_SPEED=(2*Math.PI*3.5)/30, RUN_MULT=3;
+const WALK_SPEED=(2*Math.PI*3.5)/30, RUN_MULT=2.4;
 let isRunning=false, stepT=0;
 let charFwd=new THREE.Vector3(0,0,1);
-
-// TPS camera state
 let camFwd=new THREE.Vector3(0,0,1);
-let camElevation=0.55;
-const CAM_ELEV_MIN=0.05, CAM_ELEV_MAX=1.35;
+let camElevation=.55;
+const CAM_ELEV_MIN=.05, CAM_ELEV_MAX=1.35;
 
-function walkStep(dt, moveFwd, moveRight){
+function walkStep(dt,moveFwd,moveRight){
   const speed=WALK_SPEED*(isRunning?RUN_MULT:1)*dt;
   const up=charPivot.position.clone().normalize();
-
-  // Project camera forward onto planet surface for movement reference
   const cfwd=camFwd.clone().addScaledVector(up,-camFwd.dot(up)).normalize();
   const cright=cfwd.clone().cross(up).normalize();
-
   const moving=moveFwd||moveRight;
   if(moving){
     const md=new THREE.Vector3();
     if(moveFwd)  md.addScaledVector(cfwd,moveFwd);
-    if(moveRight) md.addScaledVector(cright,-moveRight);
+    if(moveRight)md.addScaledVector(cright,-moveRight);
     if(md.lengthSq()>.0001){
       md.normalize();
       charFwd.copy(md).addScaledVector(up,-md.dot(up)).normalize();
-      const ang=(speed/activePD.R);
-      const c=Math.cos(ang),s=Math.sin(ang);
+      const ang=speed/activePD.R, c=Math.cos(ang), s=Math.sin(ang);
       const nUp=up.clone().multiplyScalar(c).addScaledVector(md,s).normalize();
       const nFwd=md.clone().multiplyScalar(c).addScaledVector(up,-s).normalize();
       charPivot.position.copy(nUp).multiplyScalar(activePD.baseR+.02);
@@ -540,16 +548,16 @@ function walkStep(dt, moveFwd, moveRight){
     stepT+=dt*(isRunning?18:8);
     const sw=Math.sin(stepT)*(isRunning?.11:.06);
     charMesh.children.forEach(c=>{
-      if(c.name==='thighL') c.rotation.x= sw*1.2;
-      if(c.name==='thighR') c.rotation.x=-sw*1.2;
-      if(c.name==='shinL')  c.rotation.x= Math.abs(sw)*.6;
-      if(c.name==='shinR')  c.rotation.x= Math.abs(-sw)*.6;
-      if(c.name==='armL')   c.rotation.x=-sw*.8;
-      if(c.name==='armR')   c.rotation.x= sw*.8;
+      if(c.name==='thighL')c.rotation.x= sw*1.2;
+      if(c.name==='thighR')c.rotation.x=-sw*1.2;
+      if(c.name==='shinL') c.rotation.x= Math.abs(sw)*.6;
+      if(c.name==='shinR') c.rotation.x= Math.abs(-sw)*.6;
+      if(c.name==='armL')  c.rotation.x=-sw*.8;
+      if(c.name==='armR')  c.rotation.x= sw*.8;
     });
   } else {
     charMesh.children.forEach(c=>{
-      if(['thighL','thighR','shinL','shinR','armL','armR'].includes(c.name)) c.rotation.x=0;
+      if(['thighL','thighR','shinL','shinR','armL','armR'].includes(c.name))c.rotation.x=0;
     });
   }
 }
@@ -558,27 +566,28 @@ function walkStep(dt, moveFwd, moveRight){
 //  SHIP FLIGHT
 // ═══════════════════════════════════════════════════════════
 const SHIP_SPEED=5, SHIP_TURN=1.4, SHIP_ROLL=1.6;
-let shipQ  =new THREE.Quaternion();
+let shipQ=new THREE.Quaternion();
 let shipPos=new THREE.Vector3();
 let shipVel=new THREE.Vector3();
 const shipPhysBody={pos:shipPos,vel:shipVel,gm:0};
 
-function getShipFwd(){ return new THREE.Vector3(0,0,-1).applyQuaternion(shipQ).normalize(); }
-function getShipUp() { return new THREE.Vector3(0,1,0).applyQuaternion(shipQ).normalize(); }
+function getShipFwd(){return new THREE.Vector3(0,0,-1).applyQuaternion(shipQ).normalize();}
+function getShipUp() {return new THREE.Vector3(0,1,0).applyQuaternion(shipQ).normalize();}
 
 function enterShip(){
   shipPivot.updateWorldMatrix(true,false);
   const me=shipPivot.matrixWorld.elements;
   shipPos.set(me[12],me[13],me[14]);
-  const scaleX=new THREE.Vector3(me[0],me[1],me[2]).length();
+  const sx=new THREE.Vector3(me[0],me[1],me[2]).length();
   const rm=new THREE.Matrix4();
-  rm.set(me[0]/scaleX,me[4],me[8],0, me[1]/scaleX,me[5],me[9],0, me[2]/scaleX,me[6],me[10],0, 0,0,0,1);
+  rm.set(me[0]/sx,me[4],me[8],0, me[1]/sx,me[5],me[9],0, me[2]/sx,me[6],me[10],0, 0,0,0,1);
   shipQ.setFromRotationMatrix(rm).normalize();
   shipVel.copy(activePD.vel);
   if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
   scene.add(shipPivot);
   shipPivot.position.copy(shipPos);
   charMesh.visible=false;
+  myShipHp=SHIP_MAX_HP;
   gameState='fly';
   if(document.pointerLockElement) document.exitPointerLock();
   setTimeout(refreshOrbits,100);
@@ -586,28 +595,102 @@ function enterShip(){
 }
 
 function shipFlyStep(dt,thrust,yaw,pitch,roll){
-  if(yaw){ const q=new THREE.Quaternion().setFromAxisAngle(getShipUp(), -yaw*SHIP_TURN*dt); shipQ.multiplyQuaternions(q,shipQ).normalize(); }
-  if(pitch){ const r=getShipFwd().cross(getShipUp()).normalize(); const q=new THREE.Quaternion().setFromAxisAngle(r,pitch*SHIP_TURN*dt); shipQ.multiplyQuaternions(q,shipQ).normalize(); }
-  if(roll){ const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt); shipQ.multiplyQuaternions(q,shipQ).normalize(); }
+  if(yaw){   const q=new THREE.Quaternion().setFromAxisAngle(getShipUp(),-yaw*SHIP_TURN*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
+  if(pitch){ const r=getShipFwd().cross(getShipUp()).normalize(); const q=new THREE.Quaternion().setFromAxisAngle(r,pitch*SHIP_TURN*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
+  if(roll){  const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
   if(thrust) shipVel.addScaledVector(getShipFwd(),thrust*SHIP_SPEED*dt);
   const allB=[...planetBodies,shipPhysBody];
   const a0=gravAccel(allB,allB.length-1);
-  shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt;
-  shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt;
-  shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
+  shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt; shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt; shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
   const a1=gravAccel(allB,allB.length-1);
-  shipVel.x+=.5*(a0.x+a1.x)*dt;
-  shipVel.y+=.5*(a0.y+a1.y)*dt;
-  shipVel.z+=.5*(a0.z+a1.z)*dt;
+  shipVel.x+=.5*(a0.x+a1.x)*dt; shipVel.y+=.5*(a0.y+a1.y)*dt; shipVel.z+=.5*(a0.z+a1.z)*dt;
   shipPivot.position.copy(shipPos);
   shipPivot.setRotationFromQuaternion(shipQ);
-  const gl=shipMesh.getObjectByName('glow');
-  if(gl) gl.intensity=thrust>0?2.2:.1;
+  const gl=shipMesh.getObjectByName('glow'); if(gl) gl.intensity=thrust>0?2.2:.1;
+  ['glowL','glowR'].forEach(n=>{const l=shipMesh.getObjectByName(n);if(l)l.intensity=thrust>0?.4:0;});
 }
 
+// ═══════════════════════════════════════════════════════════
+//  FLOAT STATE (drifting after ship destroyed)
+// ═══════════════════════════════════════════════════════════
+function enterFloat(){
+  // Inherit ship position + velocity
+  floatPos.copy(shipPos);
+  floatVel.copy(shipVel);
+  // Remove ship from scene
+  if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
+  // Place astronaut in world space
+  if(charPivot.parent) charPivot.parent.remove(charPivot);
+  scene.add(charPivot);
+  charPivot.position.copy(floatPos);
+  charMesh.visible=true;
+  // Explosion at ship position
+  spawnExplosion(shipPos.clone(),2.0,0xff6600);
+  gameState='float';
+  respawnTimer=12; // auto-respawn after 12s
+  ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
+  PLANET_TAILS.forEach(l=>l.visible=false); SHIP_TAIL.visible=false;
+  updateUI();
+}
+
+function floatStep(dt){
+  // Apply gravity from all planets + sun
+  const allB=[...planetBodies,floatPhysBody];
+  const a=gravAccel(allB,allB.length-1);
+  floatPos.x+=floatVel.x*dt+.5*a.x*dt*dt;
+  floatPos.y+=floatVel.y*dt+.5*a.y*dt*dt;
+  floatPos.z+=floatVel.z*dt+.5*a.z*dt*dt;
+  floatVel.x+=a.x*dt; floatVel.y+=a.y*dt; floatVel.z+=a.z*dt;
+
+  // Orient "up" toward nearest planet
+  let nearPD=null, nearD=Infinity;
+  PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;nearPD=pd;}});
+  let up=floatPos.clone().normalize();
+  if(nearPD) up=floatPos.clone().sub(nearPD.physPos).normalize();
+
+  charPivot.position.copy(floatPos);
+  // Make character face camera/motion direction
+  const fwdVel=floatVel.clone().addScaledVector(up,-floatVel.dot(up));
+  if(fwdVel.lengthSq()>.001){
+    const fwd=fwdVel.normalize();
+    const right=fwd.clone().cross(up).normalize();
+    charPivot.setRotationFromMatrix(new THREE.Matrix4().makeBasis(right,up,fwd.clone().negate()));
+  }
+
+  // Auto-land on planet
+  if(nearPD && nearD<nearPD.R+.8){
+    landOnFloat(nearPD);
+    return;
+  }
+
+  // Respawn countdown
+  if(!respawning){
+    respawnTimer-=dt;
+    if(respawnTimer<=0) beginRespawn();
+    document.getElementById('respawn-hud').textContent=
+      `FLOATING IN SPACE\nrespawn in ${Math.ceil(Math.max(0,respawnTimer))}s`;
+  }
+}
+
+function landOnFloat(pd){
+  const norm=floatPos.clone().sub(pd.physPos).normalize();
+  activePD=pd;
+  attachToPlanet(charPivot,pd,norm,.02);
+  charFwd=norm.clone().cross(new THREE.Vector3(0,1,0)).normalize();
+  if(charFwd.lengthSq()<.01){charFwd.set(1,0,0);charFwd.addScaledVector(norm,-charFwd.dot(norm)).normalize();}
+  camFwd.copy(charFwd);
+  charMesh.visible=true;
+  gameState='walk';
+  document.getElementById('respawn-hud').style.display='none';
+  updateUI();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LAND / BOARD
+// ═══════════════════════════════════════════════════════════
 function tryLand(){
   let best=null,bd=Infinity;
-  PLANET_DEFS.forEach(pd=>{ const d=shipPos.distanceTo(pd.physPos); if(d<pd.R+3.5&&d<bd){bd=d;best=pd;} });
+  PLANET_DEFS.forEach(pd=>{const d=shipPos.distanceTo(pd.physPos);if(d<pd.R+3.5&&d<bd){bd=d;best=pd;}});
   if(best) landOn(best);
 }
 function landOn(pd){
@@ -620,48 +703,109 @@ function landOn(pd){
   attachToPlanet(charPivot,pd,cn);
   charFwd.copy(t).addScaledVector(cn,-t.dot(cn)).normalize();
   if(charFwd.length()<.01){charFwd.set(1,0,0);charFwd.addScaledVector(cn,-charFwd.dot(cn)).normalize();}
+  camFwd.copy(charFwd);
   charMesh.visible=true;
   ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
   PLANET_TAILS.forEach(l=>l.visible=false); SHIP_TAIL.visible=false;
-  // Re-align camFwd to character's new facing direction after landing
-  camFwd.copy(charFwd);
   gameState='walk';
   updateUI();
 }
 
 // ═══════════════════════════════════════════════════════════
+//  DEATH + RESPAWN
+// ═══════════════════════════════════════════════════════════
+function beginRespawn(){
+  respawning=true;
+  document.getElementById('respawn-hud').style.display='block';
+  document.getElementById('respawn-hud').textContent='RESPAWNING…';
+  setTimeout(()=>{
+    // Find nearest planet
+    let best=PLANET_DEFS[0], bd=Infinity;
+    const refPos=gameState==='float'?floatPos:charPivot.getWorldPosition(new THREE.Vector3());
+    PLANET_DEFS.forEach(pd=>{const d=refPos.distanceTo(pd.physPos);if(d<bd){bd=d;best=pd;}});
+    activePD=best;
+    // Random spawn location on planet
+    const th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+    const norm=new THREE.Vector3(Math.sin(ph)*Math.cos(th),Math.cos(ph),Math.sin(ph)*Math.sin(th));
+    attachToPlanet(charPivot,best,norm,.02);
+    charMesh.visible=true;
+    myHp=ASTRO_MAX_HP; myShipHp=SHIP_MAX_HP;
+    gameState='walk'; respawning=false;
+    document.getElementById('respawn-hud').style.display='none';
+    updateHud();
+    updateUI();
+  },3000);
+}
+
+function takeDamage(amount, hitType, killerId){
+  if(respawning) return;
+  if(hitType==='ship' && gameState==='fly'){
+    myShipHp=Math.max(0,myShipHp-amount);
+    updateHud();
+    flashDamage();
+    if(myShipHp<=0) destroyShip(killerId);
+  } else if(gameState==='walk'||gameState==='float'){
+    myHp=Math.max(0,myHp-amount);
+    updateHud();
+    flashDamage();
+    if(myHp<=0) diePawn(killerId);
+  }
+}
+
+function destroyShip(killerId){
+  if(killerId && remotePlayers[killerId]) addKillFeed(`${remotePlayers[killerId].name} destroyed your ship`);
+  broadcastDie('ship');
+  enterFloat();
+}
+
+function diePawn(killerId){
+  if(killerId && remotePlayers[killerId]) addKillFeed(`${remotePlayers[killerId].name} eliminated you`);
+  broadcastDie('pawn');
+  beginRespawn();
+}
+
+// ═══════════════════════════════════════════════════════════
 //  CAMERA
 // ═══════════════════════════════════════════════════════════
-const CFB=5,CFU=1.8;
 const _cwp=new THREE.Vector3();
-
 function walkCamera(){
   charPivot.updateWorldMatrix(true,false);
   const me=charPivot.matrixWorld.elements;
   const wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
   charPivot.getWorldPosition(_cwp);
-  // Re-orthogonalize camFwd against current planet normal each frame
   camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
-  // Camera sits behind character at azimuth defined by camFwd, tilted up by camElevation
   const camBack=camFwd.clone().negate();
   const CAM_DIST=1.4;
   camera.position.copy(_cwp)
-    .addScaledVector(camBack, CAM_DIST*Math.cos(camElevation))
-    .addScaledVector(wUp,     CAM_DIST*Math.sin(camElevation));
+    .addScaledVector(camBack,CAM_DIST*Math.cos(camElevation))
+    .addScaledVector(wUp,CAM_DIST*Math.sin(camElevation));
   camera.up.copy(wUp);
   camera.lookAt(_cwp.clone().addScaledVector(wUp,.15));
 }
 function flyCamera(){
   const fwd=getShipFwd(),up=getShipUp();
-  camera.position.copy(shipPos).addScaledVector(fwd,-CFB).addScaledVector(up,CFU);
+  camera.position.copy(shipPos).addScaledVector(fwd,-5).addScaledVector(up,1.8);
   camera.up.copy(up);
   camera.lookAt(shipPos.clone().addScaledVector(fwd,3));
 }
+function floatCamera(){
+  let up=floatPos.clone().normalize();
+  let nearD=Infinity;
+  PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;up=floatPos.clone().sub(pd.physPos).normalize();}});
+  camFwd.addScaledVector(up,-camFwd.dot(up)).normalize();
+  const back=camFwd.clone().negate();
+  const CAM_DIST=1.6;
+  camera.position.copy(floatPos)
+    .addScaledVector(back,CAM_DIST*Math.cos(camElevation))
+    .addScaledVector(up,CAM_DIST*Math.sin(camElevation));
+  camera.up.copy(up);
+  camera.lookAt(floatPos.clone().addScaledVector(up,.15));
+}
 
 // ═══════════════════════════════════════════════════════════
-//  ORBIT PREDICTION LINES
+//  ORBIT LINES + TAILS
 // ═══════════════════════════════════════════════════════════
-const OSTEPS=2400, ODT=0.22;
+const OSTEPS=2400,ODT=.22;
 function makeOLine(color,opacity){
   const pts=new Float32Array(OSTEPS*3),geo=new THREE.BufferGeometry();
   const a=new THREE.BufferAttribute(pts,3); a.setUsage(THREE.DynamicDrawUsage);
@@ -670,407 +814,597 @@ function makeOLine(color,opacity){
   l.frustumCulled=false; scene.add(l); l.visible=false; return l;
 }
 const ORBIT_LINES=PLANET_DEFS.map(pd=>makeOLine(pd.trailCol,.15));
-const SHIP_ORBIT =makeOLine(0xffffff,.7);
-
+const SHIP_ORBIT=makeOLine(0xffffff,.7);
 function refreshOrbits(){
   const pos=PLANET_DEFS.map(pd=>({x:pd.physPos.x,y:pd.physPos.y,z:pd.physPos.z}));
   const vel=PLANET_DEFS.map(pd=>({x:pd.vel.x,y:pd.vel.y,z:pd.vel.z}));
   const paths=PLANET_DEFS.map(()=>new Float32Array(OSTEPS*3));
   let sP=gameState==='fly'?{x:shipPos.x,y:shipPos.y,z:shipPos.z}:null;
   let sV=gameState==='fly'?{x:shipVel.x,y:shipVel.y,z:shipVel.z}:null;
-  const sPth=new Float32Array(OSTEPS*3); let sCount=0;
-  const fakeBods=PLANET_DEFS.map((pd,i)=>({pos:pos[i],vel:vel[i],gm:pd.gm}));
+  const sPth=new Float32Array(OSTEPS*3); let sC=0;
+  const fb=PLANET_DEFS.map((pd,i)=>({pos:pos[i],vel:vel[i],gm:pd.gm}));
   for(let s=0;s<OSTEPS;s++){
-    const a0=fakeBods.map((_,i)=>gravAccel(fakeBods,i));
-    fakeBods.forEach((b,i)=>{ b.pos.x+=b.vel.x*ODT+.5*a0[i].x*ODT*ODT; b.pos.y+=b.vel.y*ODT+.5*a0[i].y*ODT*ODT; b.pos.z+=b.vel.z*ODT+.5*a0[i].z*ODT*ODT; });
-    const a1=fakeBods.map((_,i)=>gravAccel(fakeBods,i));
-    fakeBods.forEach((b,i)=>{ b.vel.x+=.5*(a0[i].x+a1[i].x)*ODT; b.vel.y+=.5*(a0[i].y+a1[i].y)*ODT; b.vel.z+=.5*(a0[i].z+a1[i].z)*ODT; });
-    fakeBods.forEach((b,i)=>{ paths[i][s*3]=b.pos.x; paths[i][s*3+1]=b.pos.y; paths[i][s*3+2]=b.pos.z; });
+    const a0=fb.map((_,i)=>gravAccel(fb,i));
+    fb.forEach((b,i)=>{b.pos.x+=b.vel.x*ODT+.5*a0[i].x*ODT*ODT;b.pos.y+=b.vel.y*ODT+.5*a0[i].y*ODT*ODT;b.pos.z+=b.vel.z*ODT+.5*a0[i].z*ODT*ODT;});
+    const a1=fb.map((_,i)=>gravAccel(fb,i));
+    fb.forEach((b,i)=>{b.vel.x+=.5*(a0[i].x+a1[i].x)*ODT;b.vel.y+=.5*(a0[i].y+a1[i].y)*ODT;b.vel.z+=.5*(a0[i].z+a1[i].z)*ODT;});
+    fb.forEach((b,i)=>{paths[i][s*3]=b.pos.x;paths[i][s*3+1]=b.pos.y;paths[i][s*3+2]=b.pos.z;});
     if(sP){
-      const allB=[...fakeBods,{pos:sP,vel:sV,gm:0}];
-      const sa0=gravAccel(allB,allB.length-1);
+      const ab=[...fb,{pos:sP,vel:sV,gm:0}]; const sa0=gravAccel(ab,ab.length-1);
       sP.x+=sV.x*ODT+.5*sa0.x*ODT*ODT; sP.y+=sV.y*ODT+.5*sa0.y*ODT*ODT; sP.z+=sV.z*ODT+.5*sa0.z*ODT*ODT;
-      const allB2=[...fakeBods,{pos:sP,vel:sV,gm:0}];
-      const sa1=gravAccel(allB2,allB2.length-1);
+      const ab2=[...fb,{pos:sP,vel:sV,gm:0}]; const sa1=gravAccel(ab2,ab2.length-1);
       sV.x+=.5*(sa0.x+sa1.x)*ODT; sV.y+=.5*(sa0.y+sa1.y)*ODT; sV.z+=.5*(sa0.z+sa1.z)*ODT;
-      sPth[sCount*3]=sP.x; sPth[sCount*3+1]=sP.y; sPth[sCount*3+2]=sP.z; sCount++;
+      sPth[sC*3]=sP.x; sPth[sC*3+1]=sP.y; sPth[sC*3+2]=sP.z; sC++;
       if(sP.x*sP.x+sP.y*sP.y+sP.z*sP.z>800*800) sP=null;
     }
   }
   const fly=gameState==='fly';
-  PLANET_DEFS.forEach((pd,i)=>{ ORBIT_LINES[i].geometry.attributes.position.array.set(paths[i]); ORBIT_LINES[i].geometry.attributes.position.needsUpdate=true; ORBIT_LINES[i].geometry.setDrawRange(0,OSTEPS); ORBIT_LINES[i].visible=fly; });
-  if(fly&&sCount>0){ SHIP_ORBIT.geometry.attributes.position.array.set(sPth); SHIP_ORBIT.geometry.attributes.position.needsUpdate=true; SHIP_ORBIT.geometry.setDrawRange(0,sCount); SHIP_ORBIT.visible=true; }
+  PLANET_DEFS.forEach((pd,i)=>{ORBIT_LINES[i].geometry.attributes.position.array.set(paths[i]);ORBIT_LINES[i].geometry.attributes.position.needsUpdate=true;ORBIT_LINES[i].geometry.setDrawRange(0,OSTEPS);ORBIT_LINES[i].visible=fly;});
+  if(fly&&sC>0){SHIP_ORBIT.geometry.attributes.position.array.set(sPth);SHIP_ORBIT.geometry.attributes.position.needsUpdate=true;SHIP_ORBIT.geometry.setDrawRange(0,sC);SHIP_ORBIT.visible=true;}
   else SHIP_ORBIT.visible=false;
 }
-
-// Short tails
 const TLEN=80,TEVERY=3; let tailF=0;
-function makeTail(c){ const pts=new Float32Array(TLEN*3),geo=new THREE.BufferGeometry(); const a=new THREE.BufferAttribute(pts,3);a.setUsage(THREE.DynamicDrawUsage);geo.setAttribute('position',a);geo.setDrawRange(0,0); const l=new THREE.Line(geo,new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.28,depthWrite:false})); l.frustumCulled=false;scene.add(l);l.visible=false;l._p=pts;l._h=0;l._c=0;return l; }
+function makeTail(c){const pts=new Float32Array(TLEN*3),geo=new THREE.BufferGeometry();const a=new THREE.BufferAttribute(pts,3);a.setUsage(THREE.DynamicDrawUsage);geo.setAttribute('position',a);geo.setDrawRange(0,0);const l=new THREE.Line(geo,new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.28,depthWrite:false}));l.frustumCulled=false;scene.add(l);l.visible=false;l._p=pts;l._h=0;l._c=0;return l;}
 const PLANET_TAILS=PLANET_DEFS.map(pd=>makeTail(pd.trailCol));
 const SHIP_TAIL=makeTail(0xffffff);
-function pushTail(l,x,y,z){ const i=l._h*3;l._p[i]=x;l._p[i+1]=y;l._p[i+2]=z;l._h=(l._h+1)%TLEN;l._c=Math.min(l._c+1,TLEN); const out=l.geometry.attributes.position.array,st=l._c<TLEN?0:l._h; for(let j=0;j<l._c;j++){const s=((st+j)%TLEN)*3,d=j*3;out[d]=l._p[s];out[d+1]=l._p[s+1];out[d+2]=l._p[s+2];} l.geometry.attributes.position.needsUpdate=true;l.geometry.setDrawRange(0,l._c); }
-function updateTails(){ tailF++; if(tailF%TEVERY!==0)return; const fly=gameState==='fly'; PLANET_DEFS.forEach((pd,i)=>{ PLANET_TAILS[i].visible=fly; if(fly)pushTail(PLANET_TAILS[i],pd.physPos.x,pd.physPos.y,pd.physPos.z); }); SHIP_TAIL.visible=fly; if(fly)pushTail(SHIP_TAIL,shipPos.x,shipPos.y,shipPos.z); }
+function pushTail(l,x,y,z){const i=l._h*3;l._p[i]=x;l._p[i+1]=y;l._p[i+2]=z;l._h=(l._h+1)%TLEN;l._c=Math.min(l._c+1,TLEN);const out=l.geometry.attributes.position.array,st=l._c<TLEN?0:l._h;for(let j=0;j<l._c;j++){const s=((st+j)%TLEN)*3,d=j*3;out[d]=l._p[s];out[d+1]=l._p[s+1];out[d+2]=l._p[s+2];}l.geometry.attributes.position.needsUpdate=true;l.geometry.setDrawRange(0,l._c);}
+function updateTails(){tailF++;if(tailF%TEVERY!==0)return;const fly=gameState==='fly';PLANET_DEFS.forEach((pd,i)=>{PLANET_TAILS[i].visible=fly;if(fly)pushTail(PLANET_TAILS[i],pd.physPos.x,pd.physPos.y,pd.physPos.z);});SHIP_TAIL.visible=fly;if(fly)pushTail(SHIP_TAIL,shipPos.x,shipPos.y,shipPos.z);}
 
 // ═══════════════════════════════════════════════════════════
-//  INVENTORY + MINING
+//  COMBAT: PROJECTILES, EXPLOSIONS, HIT DETECTION
 // ═══════════════════════════════════════════════════════════
-const CHUNK=.15,MIN_R=.5,MAX_R=10,MAX_INV=200;
-let material = 0;
-const invEl=document.getElementById('inv'),fxEl=document.getElementById('fx');
+const SHOT_DMG=25;         // damage per hit (4 hits to kill)
+const SHOT_SPEED=38;       // units/sec
+const SHOT_LIFE=4;         // seconds
+const HITBOX_ASTRO=.45;    // hit radius for astronaut
+const HITBOX_SHIP=1.0;     // hit radius for ship
+
+const localProjs=[];   // projectiles we fired (for hit detection)
+const visualProjs=[];  // remote projectiles (visual only)
+const explosions=[];
+
+function makeProjectileMesh(color){
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(.075,6,6),
+    new THREE.MeshBasicMaterial({color:0xffffff})));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(.18,8,8),
+    new THREE.MeshBasicMaterial({color,transparent:true,opacity:.55,
+      blending:THREE.AdditiveBlending,depthWrite:false})));
+  const light=new THREE.PointLight(color,1.2,3.5);
+  g.add(light);
+  return g;
+}
+
+function fireShot(){
+  if(respawning) return;
+  let origin, dir, color, type;
+  if(gameState==='fly'){
+    origin=shipPos.clone().addScaledVector(getShipFwd(),1.2);
+    dir=getShipFwd(); color=0x44aaff; type='ship';
+  } else if(gameState==='walk'){
+    charPivot.getWorldPosition(origin=new THREE.Vector3());
+    // Aim in camera forward direction
+    dir=camFwd.clone().addScaledVector(
+      charPivot.position.clone().normalize(),
+      -camFwd.dot(charPivot.position.clone().normalize())
+    ).normalize();
+    if(dir.lengthSq()<.01) dir=camFwd.clone();
+    // Muzzle: slightly forward + up
+    const wUp=charPivot.position.clone().normalize().applyMatrix4(
+      new THREE.Matrix4().extractRotation(charPivot.parent.matrixWorld));
+    origin.addScaledVector(dir,.3).addScaledVector(wUp,.5);
+    color=0xff8822; type='astro';
+  } else { // float
+    origin=floatPos.clone().addScaledVector(camFwd,.4);
+    dir=camFwd.clone(); color=0xff8822; type='astro';
+  }
+  const vel=dir.clone().multiplyScalar(SHOT_SPEED);
+  if(gameState==='fly') vel.add(shipVel);
+  else if(gameState==='float') vel.add(floatVel);
+
+  const mesh=makeProjectileMesh(color);
+  mesh.position.copy(origin); scene.add(mesh);
+  localProjs.push({mesh,pos:origin.clone(),vel,type,life:SHOT_LIFE,color});
+  broadcastShot(origin,dir,SHOT_SPEED+(gameState==='fly'?shipVel.length():0),color,type);
+
+  // Muzzle flash
+  const flash=new THREE.PointLight(color,3,4); flash.position.copy(origin); scene.add(flash);
+  setTimeout(()=>scene.remove(flash),80);
+}
+
+function spawnExplosion(pos,scale=1.0,color=0xff6600){
+  const count=90;
+  const positions=new Float32Array(count*3);
+  const vels=[];
+  for(let i=0;i<count;i++){
+    const d=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize();
+    const spd=(Math.random()*2.5+1)*scale*4;
+    vels.push(d.clone().multiplyScalar(spd));
+    positions[i*3]=pos.x; positions[i*3+1]=pos.y; positions[i*3+2]=pos.z;
+  }
+  const geo=new THREE.BufferGeometry();
+  const posAttr=new THREE.Float32BufferAttribute(positions,3);
+  posAttr.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('position',posAttr);
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({
+    color,size:.22*scale,transparent:true,opacity:1,
+    blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+  scene.add(pts);
+  const flash=new THREE.PointLight(color,4*scale,12*scale); flash.position.copy(pos); scene.add(flash);
+  setTimeout(()=>scene.remove(flash),200);
+  explosions.push({pts,posAttr,vels,life:1.4,maxLife:1.4});
+}
+
+function updateExplosions(dt){
+  for(let i=explosions.length-1;i>=0;i--){
+    const ex=explosions[i]; ex.life-=dt;
+    if(ex.life<=0){scene.remove(ex.pts);explosions.splice(i,1);continue;}
+    const t=ex.life/ex.maxLife;
+    ex.pts.material.opacity=t*t;
+    const arr=ex.posAttr.array;
+    ex.vels.forEach((v,j)=>{arr[j*3]+=v.x*dt;arr[j*3+1]+=v.y*dt;arr[j*3+2]+=v.z*dt;v.multiplyScalar(1-dt*1.8);});
+    ex.posAttr.needsUpdate=true;
+  }
+}
+
+function updateLocalProjs(dt){
+  for(let i=localProjs.length-1;i>=0;i--){
+    const p=localProjs[i]; p.life-=dt;
+    // Apply weak gravity from sun
+    const ts=p.pos.clone().negate();
+    const l2=Math.max(ts.lengthSq(),100);
+    p.vel.addScaledVector(ts.normalize(),GM_SUN/l2*dt);
+    p.pos.addScaledVector(p.vel,dt);
+    p.mesh.position.copy(p.pos);
+
+    let hit=false;
+    // Check hit against remote players
+    for(const rp of Object.values(remotePlayers)){
+      if(!rp.pos) continue;
+      let rpWorldPos=new THREE.Vector3();
+      const mesh=rp.state==='fly'?rp.ship:rp.astro;
+      if(!mesh.visible) continue;
+      mesh.getWorldPosition(rpWorldPos);
+      const hitR=rp.state==='fly'?HITBOX_SHIP:HITBOX_ASTRO;
+      if(p.pos.distanceTo(rpWorldPos)<hitR){
+        hit=true;
+        spawnExplosion(p.pos.clone(),.4,p.color);
+        broadcastHit(rp.id,SHOT_DMG,rp.state==='fly'?'ship':'astro');
+        break;
+      }
+    }
+    // Self-collision with planets
+    if(!hit){
+      for(const pd of PLANET_DEFS){
+        if(p.pos.distanceTo(pd.physPos)<pd.R){
+          hit=true;
+          spawnExplosion(p.pos.clone(),.3,p.color);
+          break;
+        }
+      }
+    }
+    if(hit||p.life<=0){scene.remove(p.mesh);localProjs.splice(i,1);}
+  }
+}
+
+function updateVisualProjs(dt){
+  for(let i=visualProjs.length-1;i>=0;i--){
+    const p=visualProjs[i]; p.life-=dt;
+    p.pos.addScaledVector(p.vel,dt);
+    p.mesh.position.copy(p.pos);
+    if(p.life<=0){scene.remove(p.mesh);visualProjs.splice(i,1);}
+  }
+}
+
+function flashDamage(){
+  const el=document.getElementById('dmg-flash');
+  el.style.background='rgba(255,30,30,.35)';
+  setTimeout(()=>el.style.background='rgba(255,30,30,0)',140);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════════════
 let fxTimer=0;
-function updateInvUI(){ invEl.innerHTML=`⛏️ material: ${material}`; }
-updateInvUI();
-function flash(msg){ fxEl.textContent=msg; fxEl.style.opacity='1'; fxTimer=1.4; }
+const fxEl=document.getElementById('fx');
+function flash(msg,dur=1.2){fxEl.textContent=msg;fxEl.style.opacity='1';fxTimer=dur;}
 
-function setPlanetScale(pd,newR){
-  const s=newR/pd.baseR; pd.R=newR; pd.pivot.scale.setScalar(s);
-  const cn=charPivot.position.clone().normalize(); charPivot.position.copy(cn).multiplyScalar(pd.baseR+.02);
-  const sn=shipPivot.position.clone().normalize(); shipPivot.position.copy(sn).multiplyScalar(pd.baseR+.01);
+function updateHud(){
+  document.getElementById('pawn-fill').style.width=`${(myHp/ASTRO_MAX_HP)*100}%`;
+  document.getElementById('ship-fill').style.width=`${(myShipHp/SHIP_MAX_HP)*100}%`;
+  document.getElementById('my-hud').textContent=`kills: ${kills}`;
 }
-function dig(){ if(gameState==='fly')return; if(material>=MAX_INV){flash('✋ full!');return;} if(activePD.R-CHUNK<MIN_R){flash('🪨 too small!');return;} setPlanetScale(activePD,activePD.R-CHUNK); material++; updateInvUI(); flash('⛏️ +1'); savePlanet(activePD); savePlayer(); }
-function deposit(){ if(gameState==='fly')return; if(material<=0){flash('🚀 no material!');return;} if(activePD.R+CHUNK>MAX_R){flash('🌍 too big!');return;} setPlanetScale(activePD,activePD.R+CHUNK); material--; updateInvUI(); flash('🪐 deposited!'); savePlanet(activePD); savePlayer(); }
 
-// ═══════════════════════════════════════════════════════════
-//  SPACE PROJECTILES
-// ═══════════════════════════════════════════════════════════
-const PSPEED=40; const projs=[]; const hitfx=[];
-function fireProj(type){ if(gameState!=='fly')return; if(type==='deposit'&&material<=0){flash('🚀 no material!');return;} if(type==='mine'&&material>=MAX_INV){flash('✋ full!');return;}
-  const c=type==='mine'?0xff4400:0x44ffaa; const fwd=getShipFwd();
-  const mesh=new THREE.Mesh(new THREE.SphereGeometry(.18,8,8),new THREE.MeshBasicMaterial({color:c}));
-  const gm=new THREE.Mesh(new THREE.SphereGeometry(.4,8,8),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.2})); mesh.add(gm);
-  const pos=shipPos.clone().addScaledVector(fwd,1.8); mesh.position.copy(pos); scene.add(mesh);
-  projs.push({mesh,pos:pos.clone(),vel:fwd.clone().multiplyScalar(PSPEED).add(shipVel),type,life:14});
+const killFeedMsgs=[];
+function addKillFeed(msg){
+  killFeedMsgs.unshift(msg);
+  if(killFeedMsgs.length>5) killFeedMsgs.pop();
+  const el=document.getElementById('killfeed');
+  el.innerHTML=killFeedMsgs.map((m,i)=>`<div style="opacity:${1-i*.18}">${m}</div>`).join('');
 }
-function updateProjs(dt){ for(let i=projs.length-1;i>=0;i--){ const p=projs[i]; p.life-=dt; const ts=p.pos.clone().negate(); const l2=Math.max(ts.lengthSq(),100); p.vel.addScaledVector(ts.normalize(),GM_SUN/l2*dt); p.pos.addScaledVector(p.vel,dt); p.mesh.position.copy(p.pos); let hit=false; for(const pd of PLANET_DEFS){ if(p.pos.distanceTo(pd.physPos)<pd.R){ hit=true; if(p.type==='mine'&&material<MAX_INV&&pd.R-CHUNK>=MIN_R){setPlanetScale(pd,pd.R-CHUNK);material++;updateInvUI();spawnHit(p.pos.clone(),0xff4400);flash('⛏️ mined!');savePlanet(pd);savePlayer();} else if(p.type==='deposit'&&material>0&&pd.R+CHUNK<=MAX_R){setPlanetScale(pd,pd.R+CHUNK);material--;updateInvUI();spawnHit(p.pos.clone(),0x44ffaa);flash('🪐 deposited!');savePlanet(pd);savePlayer();} break;} } if(hit||p.life<=0){scene.remove(p.mesh);projs.splice(i,1);} } }
-function spawnHit(pos,c){ for(let i=0;i<14;i++){const d=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(Math.random()*7+2); const m=new THREE.Mesh(new THREE.SphereGeometry(.1,4,4),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:1})); m.position.copy(pos);scene.add(m);hitfx.push({mesh:m,vel:d,life:.7});} }
-function updateHit(dt){ for(let i=hitfx.length-1;i>=0;i--){const p=hitfx[i];p.life-=dt;p.mesh.position.addScaledVector(p.vel,dt);p.mesh.material.opacity=p.life/.7;if(p.life<=0){scene.remove(p.mesh);hitfx.splice(i,1);}} }
 
-// ═══════════════════════════════════════════════════════════
-//  STATE + INPUT
-// ═══════════════════════════════════════════════════════════
-let gameState='walk';
 function updateUI(){
-  const fly=gameState==='fly';
-  document.getElementById('jR').style.display    =fly?'block':'none';
-  document.getElementById('bBoard').style.display=fly?'none':'flex';
-  document.getElementById('bDig').style.display  =fly?'none':'flex';
-  document.getElementById('bDep').style.display  =fly?'none':'flex';
-  document.getElementById('bRun').style.display  =fly?'none':'flex';
-  document.getElementById('bLand').style.display =fly?'flex':'none';
-  document.getElementById('bMine').style.display =fly?'flex':'none';
-  document.getElementById('bDep2').style.display =fly?'flex':'none';
+  const fly=gameState==='fly', flt=gameState==='float';
+  document.getElementById('jR').style.display=fly?'block':'none';
+  document.getElementById('bBoard').style.display=(fly||flt)?'none':'flex';
+  document.getElementById('bShoot').style.display='flex';
+  document.getElementById('bLand').style.display=fly?'flex':'none';
+  document.getElementById('bThrust').style.display=fly?'flex':'none';
+  document.getElementById('ship-row').style.display=fly?'flex':'none';
+  document.getElementById('respawn-hud').style.display=(flt&&!respawning)?'block':'none';
+  document.getElementById('xhair').style.display=
+    (document.pointerLockElement===renderer.domElement)?'block':'none';
   document.getElementById('hint').textContent=fly
-    ?' SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  RClick·mine  LClick·deposit  F·land '
-    :' click to aim  WASD·move  Shift·run  click·dig  R·deposit  E·board  ESC·unlock ';
+    ?'SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  CLICK·shoot  F·land'
+    :flt?'drifting — click to aim+shoot'
+    :'click to aim · WASD·move · SHIFT·run · E·board · CLICK·shoot · ESC·unlock';
 }
-updateUI();
+updateUI(); updateHud();
 
+// ═══════════════════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════════════════
 const K={};
+let shootCooldown=0;
+const SHOOT_COOLDOWN=.22;
+
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT') return;
   K[e.code]=true;
-  if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&gameState==='walk') isRunning=!isRunning;
-  if(e.code==='KeyE'&&gameState==='walk'){ const cw=new THREE.Vector3(),sw=new THREE.Vector3(); charPivot.getWorldPosition(cw);shipPivot.getWorldPosition(sw); if(cw.distanceTo(sw)<1.9)enterShip(); }
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight') isRunning=!isRunning;
+  if(e.code==='KeyE'&&gameState==='walk'){
+    const cw=new THREE.Vector3(),sw=new THREE.Vector3();
+    charPivot.getWorldPosition(cw); shipPivot.getWorldPosition(sw);
+    if(cw.distanceTo(sw)<1.9) enterShip();
+  }
   if(e.code==='KeyF'&&gameState==='fly') tryLand();
-  if(e.code==='KeyR'&&gameState==='walk') deposit();
+  if(e.code==='Space'&&gameState==='fly'){} // handled in loop
   e.preventDefault();
 });
 addEventListener('keyup',e=>K[e.code]=false);
-renderer.domElement.addEventListener('click', e=>{
+
+renderer.domElement.addEventListener('click',e=>{
   if(e.button===0){
-    if(gameState==='fly') fireProj('deposit');
-    else if(document.pointerLockElement===renderer.domElement) dig();
-    else if(gameReady) renderer.domElement.requestPointerLock();
+    if(gameState!=='fly'&&document.pointerLockElement!==renderer.domElement){
+      if(gameReady) renderer.domElement.requestPointerLock();
+      return;
+    }
+    if(shootCooldown<=0&&gameReady){ fireShot(); shootCooldown=SHOOT_COOLDOWN; }
   }
 });
-renderer.domElement.addEventListener('contextmenu',e=>{ e.preventDefault();if(gameState==='fly')fireProj('mine'); });
+renderer.domElement.addEventListener('contextmenu',e=>{e.preventDefault();});
 
-// TPS mouse look — only active when pointer is locked in walk mode
 addEventListener('mousemove',e=>{
-  if(document.pointerLockElement!==renderer.domElement||gameState!=='walk') return;
-  charPivot.updateWorldMatrix(true,false);
-  const me=charPivot.matrixWorld.elements;
-  const wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
-  const q=new THREE.Quaternion().setFromAxisAngle(wUp,-e.movementX*0.003);
-  camFwd.applyQuaternion(q).addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
-  camElevation=Math.max(CAM_ELEV_MIN,Math.min(CAM_ELEV_MAX,camElevation+e.movementY*0.003));
+  const locked=document.pointerLockElement===renderer.domElement;
+  if(!locked) return;
+  if(gameState==='walk'||gameState==='float'){
+    let wUp;
+    if(gameState==='walk'){
+      charPivot.updateWorldMatrix(true,false);
+      const me=charPivot.matrixWorld.elements;
+      wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
+    } else {
+      wUp=floatPos.clone().normalize();
+      let nearD=Infinity;
+      PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;wUp=floatPos.clone().sub(pd.physPos).normalize();}});
+    }
+    const q=new THREE.Quaternion().setFromAxisAngle(wUp,-e.movementX*.003);
+    camFwd.applyQuaternion(q).addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
+    camElevation=Math.max(CAM_ELEV_MIN,Math.min(CAM_ELEV_MAX,camElevation+e.movementY*.003));
+  }
 });
+
+document.addEventListener('pointerlockchange',()=>updateUI());
 
 // Joysticks
 const JOY={lx:0,ly:0,rx:0,ry:0};
-function makeJoy(zone,knob,xk,yk){ let id=null; const JMAX=52; const mv=(cx,cy)=>{ const r=zone.getBoundingClientRect(); let ox=cx-(r.left+r.width/2),oy=cy-(r.top+r.height/2); const l=Math.sqrt(ox*ox+oy*oy),cl=Math.min(l,JMAX); const nx=l>0?ox/l:0,ny=l>0?oy/l:0; knob.style.transform=`translate(calc(-50% + ${nx*cl}px),calc(-50% + ${ny*cl}px))`; JOY[xk]=Math.abs(nx)>.12?nx:0;JOY[yk]=Math.abs(ny)>.12?ny:0; }; const rs=()=>{knob.style.transform='translate(-50%,-50%)';JOY[xk]=0;JOY[yk]=0;}; zone.addEventListener('touchstart',e=>{e.preventDefault();id=e.changedTouches[0].identifier;mv(e.changedTouches[0].clientX,e.changedTouches[0].clientY);},{passive:false}); zone.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===id)mv(t.clientX,t.clientY);},{passive:false}); zone.addEventListener('touchend',e=>{e.preventDefault();id=null;rs();},{passive:false}); let dn=false; zone.addEventListener('mousedown',e=>{dn=true;mv(e.clientX,e.clientY);}); zone.addEventListener('mousemove',e=>{if(dn)mv(e.clientX,e.clientY);}); zone.addEventListener('mouseup',()=>{dn=false;rs();}); }
+function makeJoy(zone,knob,xk,yk){
+  let id=null; const JMAX=52;
+  const mv=(cx,cy)=>{const r=zone.getBoundingClientRect();let ox=cx-(r.left+r.width/2),oy=cy-(r.top+r.height/2);const l=Math.sqrt(ox*ox+oy*oy),cl=Math.min(l,JMAX);const nx=l>0?ox/l:0,ny=l>0?oy/l:0;knob.style.transform=`translate(calc(-50% + ${nx*cl}px),calc(-50% + ${ny*cl}px))`;JOY[xk]=Math.abs(nx)>.12?nx:0;JOY[yk]=Math.abs(ny)>.12?ny:0;};
+  const rs=()=>{knob.style.transform='translate(-50%,-50%)';JOY[xk]=0;JOY[yk]=0;};
+  zone.addEventListener('touchstart',e=>{e.preventDefault();id=e.changedTouches[0].identifier;mv(e.changedTouches[0].clientX,e.changedTouches[0].clientY);},{passive:false});
+  zone.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===id)mv(t.clientX,t.clientY);},{passive:false});
+  zone.addEventListener('touchend',e=>{e.preventDefault();id=null;rs();},{passive:false});
+  let dn=false;
+  zone.addEventListener('mousedown',e=>{dn=true;mv(e.clientX,e.clientY);});
+  zone.addEventListener('mousemove',e=>{if(dn)mv(e.clientX,e.clientY);});
+  zone.addEventListener('mouseup',()=>{dn=false;rs();});
+}
 makeJoy(document.getElementById('jL'),document.getElementById('jLk'),'lx','ly');
 makeJoy(document.getElementById('jR'),document.getElementById('jRk'),'rx','ry');
 
-function tapBtn(el,fn){ el.addEventListener('touchstart',e=>{e.preventDefault();el.classList.add('on');fn();},{passive:false}); el.addEventListener('touchend',e=>{e.preventDefault();el.classList.remove('on');},{passive:false}); el.addEventListener('click',fn); }
-function holdBtn(el,dn,up){ el.addEventListener('touchstart',e=>{e.preventDefault();el.classList.add('on');dn();},{passive:false}); el.addEventListener('touchend',e=>{e.preventDefault();el.classList.remove('on');up&&up();},{passive:false}); el.addEventListener('mousedown',()=>{el.classList.add('on');dn();}); el.addEventListener('mouseup',()=>{el.classList.remove('on');up&&up();}); }
+function tapBtn(el,fn){el.addEventListener('touchstart',e=>{e.preventDefault();el.classList.add('on');fn();},{passive:false});el.addEventListener('touchend',e=>{e.preventDefault();el.classList.remove('on');},{passive:false});el.addEventListener('click',fn);}
+function holdBtn(el,dn,up){el.addEventListener('touchstart',e=>{e.preventDefault();el.classList.add('on');dn();},{passive:false});el.addEventListener('touchend',e=>{e.preventDefault();el.classList.remove('on');up&&up();},{passive:false});el.addEventListener('mousedown',()=>{el.classList.add('on');dn();});el.addEventListener('mouseup',()=>{el.classList.remove('on');up&&up();});}
 
+tapBtn(document.getElementById('bShoot'),()=>{if(shootCooldown<=0&&gameReady){fireShot();shootCooldown=SHOOT_COOLDOWN;}});
 holdBtn(document.getElementById('bBoard'),
   ()=>{if(gameState==='fly'){K['Space']=true;}else{const cw=new THREE.Vector3(),sw=new THREE.Vector3();charPivot.getWorldPosition(cw);shipPivot.getWorldPosition(sw);if(cw.distanceTo(sw)<1.9)enterShip();}},
   ()=>K['Space']=false);
-tapBtn(document.getElementById('bDig'),  ()=>dig());
-tapBtn(document.getElementById('bDep'),  ()=>deposit());
-tapBtn(document.getElementById('bRun'),  ()=>{isRunning=!isRunning;});
-tapBtn(document.getElementById('bLand'), ()=>tryLand());
-tapBtn(document.getElementById('bMine'), ()=>fireProj('mine'));
-tapBtn(document.getElementById('bDep2'), ()=>fireProj('deposit'));
+tapBtn(document.getElementById('bLand'),()=>tryLand());
+holdBtn(document.getElementById('bThrust'),()=>K['Space']=true,()=>K['Space']=false);
 
 // ═══════════════════════════════════════════════════════════
-//  SUPABASE CONFIG
+//  SUPABASE
 // ═══════════════════════════════════════════════════════════
-const SUPABASE_URL  = 'https://fgqppxnntbkqcmwmwvao.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZncXBweG5udGJrcWNtd213dmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3ODcyMDUsImV4cCI6MjA5MDM2MzIwNX0.l2Fyv9GqH6DUfqJAKqT2THQzgcQnV7yTQoTGdFojNjY';
-
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const SUPABASE_URL ='https://fgqppxnntbkqcmwmwvao.supabase.co';
+const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZncXBweG5udGJrcWNtd213dmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3ODcyMDUsImV4cCI6MjA5MDM2MzIwNX0.l2Fyv9GqH6DUfqJAKqT2THQzgcQnV7yTQoTGdFojNjY';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
 
 // ═══════════════════════════════════════════════════════════
 //  PLAYER IDENTITY
 // ═══════════════════════════════════════════════════════════
-let myId   = null;
-let myName = null;
-let channel= null;
+let myId=null, myName=null, channel=null, gameReady=false;
+const PLAYER_COLORS=[0xff4466,0x44ffaa,0x4488ff,0xffaa22,0xcc44ff,0xff8844,0x44ffff,0x88ff44];
+function playerColor(id){let h=0;for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0;return PLAYER_COLORS[h%PLAYER_COLORS.length];}
 
-const PLAYER_COLORS = [0xff4466,0x44ffaa,0x4488ff,0xffaa22,0xcc44ff,0xff8844,0x44ffff,0x88ff44];
-function playerColor(id){ let h=0; for(let i=0;i<id.length;i++)h=(h*31+id.charCodeAt(i))>>>0; return PLAYER_COLORS[h%PLAYER_COLORS.length]; }
+// ═══════════════════════════════════════════════════════════
+//  SNAPSHOT INTERPOLATION BUFFER
+// ═══════════════════════════════════════════════════════════
+class SnapBuffer{
+  constructor(delayMs=150){this.states=[];this.delayMs=delayMs;}
+  add(s){s.t=Date.now();this.states.push(s);const c=Date.now()-2000;while(this.states.length>2&&this.states[0].t<c)this.states.shift();}
+  get(){
+    const rt=Date.now()-this.delayMs;
+    if(!this.states.length) return null;
+    if(this.states.length===1) return {a:this.states[0],b:null,alpha:0};
+    for(let i=this.states.length-1;i>=1;i--){
+      if(this.states[i-1].t<=rt&&this.states[i].t>=rt){
+        const a=this.states[i-1],b=this.states[i];
+        return {a,b,alpha:Math.max(0,Math.min(1,(rt-a.t)/(b.t-a.t+.001)))};
+      }
+    }
+    return {a:this.states[this.states.length-1],b:null,alpha:0};
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 //  REMOTE PLAYERS
 // ═══════════════════════════════════════════════════════════
-const remotePlayers = {};
+const remotePlayers={};
+const _qa=new THREE.Quaternion(), _qb=new THREE.Quaternion();
 
-function makeRemoteAstronaut(color){
-  const g=new THREE.Group();
-  const mat=new THREE.MeshPhongMaterial({color,shininess:40});
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.095,.105,.22,10),mat); body.position.y=.18; g.add(body);
-  const helm=new THREE.Mesh(new THREE.SphereGeometry(.095,14,14),mat); helm.position.y=.435; g.add(helm);
-  const vis=new THREE.Mesh(new THREE.SphereGeometry(.072,10,10),new THREE.MeshPhongMaterial({color:0x88aacc,transparent:true,opacity:.7,shininess:80})); vis.position.set(0,.435,.045); vis.scale.set(1,.78,1); g.add(vis);
-  [-1,1].forEach(s=>{ const l=new THREE.Mesh(new THREE.CylinderGeometry(.044,.044,.14,7),mat); l.position.set(s*.065,.04,0); g.add(l); });
-  return g;
-}
-function makeRemoteShip(color){
-  const g=new THREE.Group();
-  const mat=new THREE.MeshPhongMaterial({color,shininess:60});
-  const fuse=new THREE.Mesh(new THREE.CylinderGeometry(.17,.26,.75,10),mat); fuse.position.y=.38; g.add(fuse);
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(.17,.42,10),mat); nose.position.y=.94; g.add(nose);
-  [-1,1].forEach(s=>{ const w=new THREE.Mesh(new THREE.BoxGeometry(.55,.038,.28),mat); w.position.set(s*.42,.32,.04); g.add(w); });
-  return g;
-}
-
-function makeNameLabel(name, color){
-  const canvas=document.createElement('canvas'); canvas.width=256; canvas.height=64;
-  const ctx=canvas.getContext('2d');
-  ctx.font='bold 28px Courier New';
-  ctx.fillStyle=`#${color.toString(16).padStart(6,'0')}`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(name,128,32);
-  const tex=new THREE.CanvasTexture(canvas);
-  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
-  sprite.scale.set(1.2,.3,1);
-  sprite.position.y=.9;
-  return sprite;
-}
-
-function getOrCreateRemote(id, name, state){
+function getOrCreateRemote(id,name,state){
   if(remotePlayers[id]) return remotePlayers[id];
   const color=playerColor(id);
   const rp={
-    id, name, color, state,
-    astro: makeRemoteAstronaut(color),
-    ship:  makeRemoteShip(color),
-    targetPos: new THREE.Vector3(),
-    targetQ:   new THREE.Quaternion(),
-    pos:       new THREE.Vector3(),
-    q:         new THREE.Quaternion(),
-    lastSeen:  Date.now(),
-    planetName: undefined,
+    id,name,color,state,
+    astro:makeRemoteAstronaut(color),
+    ship:makeRemoteShip(color),
+    pos:new THREE.Vector3(),
+    q:new THREE.Quaternion(),
+    hp:ASTRO_MAX_HP, shipHp:SHIP_MAX_HP,
+    lastSeen:Date.now(),
+    planetName:undefined,
+    snap:new SnapBuffer(150),
   };
   rp.astro.add(makeNameLabel(name,color));
   rp.ship.add(makeNameLabel(name,color));
-  scene.add(rp.astro);
-  scene.add(rp.ship);
+  scene.add(rp.astro); scene.add(rp.ship);
   remotePlayers[id]=rp;
   return rp;
 }
 
 function removeRemote(id){
-  const rp=remotePlayers[id]; if(!rp) return;
-  [rp.astro, rp.ship].forEach(m=>{ if(m.parent) m.parent.remove(m); });
+  const rp=remotePlayers[id]; if(!rp)return;
+  [rp.astro,rp.ship].forEach(m=>{if(m.parent)m.parent.remove(m);});
   delete remotePlayers[id];
-  // Re-check host role; if we become host, resume local physics immediately
   updatePhysicsHostRole();
-  if(isPhysicsHost) planetSyncAge = Infinity;
+  if(isPhysicsHost) planetSyncAge=Infinity;
 }
 
-function updateRemotePlayers(dt){
-  const now=Date.now();
-  Object.values(remotePlayers).forEach(rp=>{
-    if(now-rp.lastSeen>8000){ removeRemote(rp.id); return; }
-    rp.pos.lerp(rp.targetPos, Math.min(1, dt*12));
-    rp.q.slerp(rp.targetQ,    Math.min(1, dt*12));
-    const inFly=rp.state==='fly';
-    rp.astro.visible=!inFly; rp.ship.visible=inFly;
-    const mesh=inFly?rp.ship:rp.astro;
-    mesh.position.copy(rp.pos);
-    mesh.quaternion.copy(rp.q);
-  });
-  const names=Object.values(remotePlayers).map(r=>`● ${r.name}`);
-  document.getElementById('players-hud').textContent=names.join('\n');
-}
-
-// ═══════════════════════════════════════════════════════════
-//  BROADCAST — send our state 10x/sec
-// ═══════════════════════════════════════════════════════════
-let broadcastTimer=0;
-const BROADCAST_RATE=0.1;
-
-function broadcastState(){
-  if(!channel||!myId) return;
-  let px,py,pz,qx,qy,qz,qw,planet=null;
-  if(gameState==='fly'){
-    // World-space — ship is not parented to a planet
-    px=shipPos.x; py=shipPos.y; pz=shipPos.z;
-    qx=shipQ.x; qy=shipQ.y; qz=shipQ.z; qw=shipQ.w;
-  } else {
-    // LOCAL-space relative to planet pivot — eliminates jitter when planet moves
-    px=charPivot.position.x; py=charPivot.position.y; pz=charPivot.position.z;
-    qx=charPivot.quaternion.x; qy=charPivot.quaternion.y;
-    qz=charPivot.quaternion.z; qw=charPivot.quaternion.w;
-    planet=activePD.name;
-  }
-  // Only the physics host broadcasts planet positions to avoid ping-pong jitter
-  const planets = isPhysicsHost
-    ? PLANET_DEFS.map(pd=>[+pd.physPos.x.toFixed(2),+pd.physPos.y.toFixed(2),+pd.physPos.z.toFixed(2)])
-    : undefined;
-  channel.send({
-    type:'broadcast', event:'player',
-    payload:{ id:myId, name:myName, state:gameState, px,py,pz, qx,qy,qz,qw, planet, planets }
-  });
-}
-
-// Re-parent a remote player mesh to the correct planet pivot (or scene for flying)
-function reparentRemote(rp, planetName){
+function reparentRemote(rp,planetName){
   if(rp.planetName===planetName) return;
-  [rp.astro, rp.ship].forEach(m=>{ if(m.parent) m.parent.remove(m); });
+  [rp.astro,rp.ship].forEach(m=>{if(m.parent)m.parent.remove(m);});
   if(planetName){
     const pd=PLANET_DEFS.find(p=>p.name===planetName);
-    if(pd){ pd.pivot.add(rp.astro); pd.pivot.add(rp.ship); }
+    if(pd){pd.pivot.add(rp.astro);pd.pivot.add(rp.ship);}
   } else {
     scene.add(rp.astro); scene.add(rp.ship);
   }
   rp.planetName=planetName;
 }
 
+function updateRemotePlayers(dt){
+  const now=Date.now();
+  const lines=[];
+  Object.values(remotePlayers).forEach(rp=>{
+    if(now-rp.lastSeen>8000){removeRemote(rp.id);return;}
+    const snap=rp.snap.get();
+    if(!snap) return;
+
+    // Resolve interpolated state
+    let px,py,pz,qx,qy,qz,qw;
+    if(snap.b){
+      const {a,b,alpha}=snap;
+      px=a.px+(b.px-a.px)*alpha; py=a.py+(b.py-a.py)*alpha; pz=a.pz+(b.pz-a.pz)*alpha;
+      _qa.set(a.qx,a.qy,a.qz,a.qw); _qb.set(b.qx,b.qy,b.qz,b.qw);
+      _qa.slerp(_qb,alpha);
+      qx=_qa.x; qy=_qa.y; qz=_qa.z; qw=_qa.w;
+    } else {
+      const {a}=snap; const age=(now-a.t)*.001;
+      // Dead reckoning: extrapolate using stored velocity
+      px=a.px+(a.vx||0)*age; py=a.py+(a.vy||0)*age; pz=a.pz+(a.vz||0)*age;
+      qx=a.qx; qy=a.qy; qz=a.qz; qw=a.qw;
+    }
+
+    rp.pos.set(px,py,pz); rp.q.set(qx,qy,qz,qw);
+    const inFly=rp.state==='fly', inFloat=rp.state==='float';
+    rp.astro.visible=!inFly; rp.ship.visible=inFly;
+    const mesh=inFly?rp.ship:rp.astro;
+    mesh.position.copy(rp.pos); mesh.quaternion.copy(rp.q);
+
+    lines.push(`● ${rp.name}`);
+  });
+  document.getElementById('players-hud').textContent=lines.join('\n');
+}
+
 function handleRemotePlayer(payload){
   if(payload.id===myId) return;
-  const rp=getOrCreateRemote(payload.id, payload.name, payload.state);
-  // Re-evaluate who is the physics host now that we know this player's ID
+  const rp=getOrCreateRemote(payload.id,payload.name,payload.state);
   updatePhysicsHostRole();
-  // If host sent planet positions, store as lerp targets (non-host only)
-  if(payload.planets && !isPhysicsHost){
-    payload.planets.forEach(([x,y,z],i)=>{
+
+  // Physics host sends planet positions; non-host follows
+  if(payload.planets&&!isPhysicsHost){
+    payload.planets.forEach(([x,y,z,vx,vy,vz],i)=>{
       if(!PLANET_DEFS[i]) return;
-      const firstSync = !PLANET_DEFS[i].remoteTarget;
-      if(!PLANET_DEFS[i].remoteTarget) PLANET_DEFS[i].remoteTarget = new THREE.Vector3();
+      const firstSync=!PLANET_DEFS[i].remoteTarget;
+      if(!PLANET_DEFS[i].remoteTarget) PLANET_DEFS[i].remoteTarget=new THREE.Vector3();
       PLANET_DEFS[i].remoteTarget.set(x,y,z);
+      // Also sync velocity so physics is accurate when we take over
+      if(vx!==undefined) PLANET_DEFS[i].vel.set(vx,vy,vz);
       if(firstSync){
-        // Snap immediately on first sync — avoids the large initial convergence gap
         PLANET_DEFS[i].physPos.copy(PLANET_DEFS[i].remoteTarget);
         PLANET_DEFS[i].pivot.position.copy(PLANET_DEFS[i].remoteTarget);
       }
     });
-    planetSyncAge = 0;
+    planetSyncAge=0;
   }
+
   rp.state=payload.state;
-  // Set target BEFORE reparent so we can snap pos on parent change
-  rp.targetPos.set(payload.px,payload.py,payload.pz);
-  rp.targetQ.set(payload.qx,payload.qy,payload.qz,payload.qw);
-  const prevPlanet = rp.planetName;
-  reparentRemote(rp, payload.planet||null);
-  // Snap pos/q immediately on parent change — avoids lerping from wrong coordinate space
-  if(rp.planetName !== prevPlanet){
-    rp.pos.copy(rp.targetPos);
-    rp.q.copy(rp.targetQ);
+  if(payload.hp!==undefined) rp.hp=payload.hp;
+  if(payload.shipHp!==undefined) rp.shipHp=payload.shipHp;
+
+  // Push to snapshot buffer
+  rp.snap.add({
+    px:payload.px, py:payload.py, pz:payload.pz,
+    qx:payload.qx, qy:payload.qy, qz:payload.qz, qw:payload.qw,
+    vx:payload.vx||0, vy:payload.vy||0, vz:payload.vz||0,
+    state:payload.state, planet:payload.planet
+  });
+
+  // Re-parent on planet change (snap position to avoid lerp from wrong space)
+  const prevPlanet=rp.planetName;
+  reparentRemote(rp,payload.planet||null);
+  if(rp.planetName!==prevPlanet){
+    rp.pos.set(payload.px,payload.py,payload.pz);
+    rp.q.set(payload.qx,payload.qy,payload.qz,payload.qw);
   }
   rp.lastSeen=Date.now();
 }
 
+function handleShot(payload){
+  if(payload.from===myId) return;
+  const origin=new THREE.Vector3(payload.ox,payload.oy,payload.oz);
+  const vel=new THREE.Vector3(payload.dx,payload.dy,payload.dz).multiplyScalar(payload.spd);
+  const mesh=makeProjectileMesh(payload.color||0x44aaff);
+  mesh.position.copy(origin); scene.add(mesh);
+  visualProjs.push({mesh,pos:origin.clone(),vel,life:SHOT_LIFE});
+}
+
+function handleHit(payload){
+  if(payload.to!==myId) return;
+  takeDamage(payload.dmg,payload.type,payload.from);
+}
+
+function handleDie(payload){
+  if(payload.id===myId) return;
+  const rp=remotePlayers[payload.id]; if(!rp)return;
+  if(payload.kind==='ship'){
+    rp.shipHp=0;
+    spawnExplosion(rp.pos.clone(),2.0,0xff6600);
+  } else {
+    rp.hp=0;
+    spawnExplosion(rp.pos.clone(),.5,0xff4422);
+  }
+  if(payload.by===myId){
+    kills++;
+    addKillFeed(`you ${payload.kind==='ship'?'destroyed':'eliminated'} ${rp.name}`);
+    updateHud();
+  } else if(rp){
+    addKillFeed(`${remotePlayers[payload.by]?.name||'?'} got ${rp.name}`);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
-//  SUPABASE DB — persist planets and player inventory
+//  BROADCAST
 // ═══════════════════════════════════════════════════════════
-async function loadWorld(){
-  const {data}=await sb.from('planets').select('*');
-  if(!data) return;
-  data.forEach(row=>{
-    const pd=PLANET_DEFS.find(p=>p.name===row.name);
-    if(!pd) return;
-    const newR=row.radius;
-    if(Math.abs(newR-pd.R)>.01) setPlanetScale(pd,newR);
+let broadcastTimer=0;
+const BROADCAST_RATE=.05; // 20 Hz
+
+function broadcastState(){
+  if(!channel||!myId) return;
+  let px,py,pz,qx,qy,qz,qw,vx,vy,vz,planet=null;
+  if(gameState==='fly'){
+    px=shipPos.x; py=shipPos.y; pz=shipPos.z;
+    qx=shipQ.x; qy=shipQ.y; qz=shipQ.z; qw=shipQ.w;
+    vx=shipVel.x; vy=shipVel.y; vz=shipVel.z;
+  } else if(gameState==='float'){
+    px=floatPos.x; py=floatPos.y; pz=floatPos.z;
+    charPivot.quaternion.set(0,0,0,1);
+    qx=charPivot.quaternion.x; qy=charPivot.quaternion.y;
+    qz=charPivot.quaternion.z; qw=charPivot.quaternion.w;
+    vx=floatVel.x; vy=floatVel.y; vz=floatVel.z;
+  } else {
+    px=charPivot.position.x; py=charPivot.position.y; pz=charPivot.position.z;
+    qx=charPivot.quaternion.x; qy=charPivot.quaternion.y;
+    qz=charPivot.quaternion.z; qw=charPivot.quaternion.w;
+    vx=0; vy=0; vz=0;
+    planet=activePD.name;
+  }
+  // Host broadcasts planet positions + velocities for sync
+  const planets=isPhysicsHost
+    ? PLANET_DEFS.map(pd=>[
+        +pd.physPos.x.toFixed(2),+pd.physPos.y.toFixed(2),+pd.physPos.z.toFixed(2),
+        +pd.vel.x.toFixed(3),+pd.vel.y.toFixed(3),+pd.vel.z.toFixed(3)
+      ])
+    : undefined;
+  channel.send({
+    type:'broadcast',event:'player',
+    payload:{id:myId,name:myName,state:gameState,
+      px,py,pz,qx,qy,qz,qw,vx,vy,vz,planet,
+      hp:myHp,shipHp:myShipHp,planets}
   });
 }
 
-async function savePlanet(pd){
-  await sb.from('planets').upsert({name:pd.name, radius:pd.R});
+function broadcastShot(origin,dir,spd,color,type){
+  if(!channel||!myId) return;
+  channel.send({type:'broadcast',event:'shot',
+    payload:{from:myId,ox:origin.x,oy:origin.y,oz:origin.z,
+      dx:dir.x,dy:dir.y,dz:dir.z,spd,color,type}});
 }
-
-async function loadPlayer(){
-  const {data}=await sb.from('players').select('*').eq('id',myId).single();
-  if(data){ material=data.material||0; updateInvUI(); }
+function broadcastHit(toId,dmg,type){
+  if(!channel||!myId) return;
+  channel.send({type:'broadcast',event:'hit',
+    payload:{from:myId,to:toId,dmg,type}});
 }
-
-async function savePlayer(){
-  await sb.from('players').upsert({id:myId, name:myName, material, updated_at:new Date().toISOString()});
-}
-
-function subscribePlanetChanges(){
-  sb.channel('planet-changes')
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'planets'},(payload)=>{
-      const pd=PLANET_DEFS.find(p=>p.name===payload.new.name);
-      if(pd && Math.abs(payload.new.radius-pd.R)>.01) setPlanetScale(pd,payload.new.radius);
-    })
-    .subscribe();
+function broadcastDie(kind){
+  if(!channel||!myId) return;
+  channel.send({type:'broadcast',event:'die',
+    payload:{id:myId,by:myId,kind}});
 }
 
 // ═══════════════════════════════════════════════════════════
-//  LOGIN FLOW
+//  LOGIN + SUPABASE CONNECT
 // ═══════════════════════════════════════════════════════════
-let gameReady=false;
-
-document.getElementById('join-btn').addEventListener('click', joinWorld);
-document.getElementById('name-input').addEventListener('keydown', e=>{ if(e.key==='Enter') joinWorld(); });
+document.getElementById('join-btn').addEventListener('click',joinWorld);
+document.getElementById('name-input').addEventListener('keydown',e=>{if(e.key==='Enter')joinWorld();});
 
 async function joinWorld(){
   const nameRaw=document.getElementById('name-input').value.trim();
   const errEl=document.getElementById('login-err');
-  if(!nameRaw){ errEl.textContent='enter a name first'; return; }
-  if(nameRaw.length<2){ errEl.textContent='name too short'; return; }
-
+  if(!nameRaw){errEl.textContent='enter a callsign';return;}
+  if(nameRaw.length<2){errEl.textContent='too short';return;}
   errEl.textContent='connecting…';
   myName=nameRaw;
   myId=`${nameRaw}_${Math.random().toString(36).slice(2,7)}`;
-
-  try {
-    await loadWorld();
-    await loadPlayer();
-    subscribePlanetChanges();
-
-    channel = sb.channel('game-world', { config:{ broadcast:{ self:false } } });
+  try{
+    channel=sb.channel('game-world',{config:{broadcast:{self:false}}});
     channel
-      .on('broadcast', {event:'player'}, ({payload})=>handleRemotePlayer(payload))
-      .on('presence',  {event:'leave'},  ({leftPresences})=>{
-        leftPresences.forEach(p=>{ if(p.id) removeRemote(p.id); });
+      .on('broadcast',{event:'player'},({payload})=>handleRemotePlayer(payload))
+      .on('broadcast',{event:'shot'},  ({payload})=>handleShot(payload))
+      .on('broadcast',{event:'hit'},   ({payload})=>handleHit(payload))
+      .on('broadcast',{event:'die'},   ({payload})=>handleDie(payload))
+      .on('presence', {event:'leave'}, ({leftPresences})=>{
+        leftPresences.forEach(p=>{if(p.id)removeRemote(p.id);});
       })
-      .subscribe(async(status)=>{
-        if(status==='SUBSCRIBED'){
-          await channel.track({id:myId,name:myName});
-        }
+      .subscribe(async status=>{
+        if(status==='SUBSCRIBED') await channel.track({id:myId,name:myName});
       });
-
     document.getElementById('login-screen').style.display='none';
     gameReady=true;
-    window.addEventListener('beforeunload',()=>{ savePlayer(); if(channel) channel.untrack(); });
-
-  } catch(e){
-    errEl.textContent='connection failed — check your Supabase keys';
+    window.addEventListener('beforeunload',()=>{if(channel)channel.untrack();});
+  }catch(e){
+    errEl.textContent='connection failed';
     console.error(e);
   }
 }
@@ -1086,22 +1420,28 @@ function loop(){
   const dt=Math.min(clock.getDelta(),.05);
   const t=clock.elapsedTime;
   sunMat.uniforms.time.value=t;
+  if(!gameReady){renderer.render(scene,camera);return;}
 
-  if(!gameReady){ renderer.render(scene,camera); return; }
-
-  const moveFwd =gameState==='walk'?(K['KeyW']||K['ArrowUp']?1:K['KeyS']||K['ArrowDown']?-1:-JOY.ly):0;
-  const moveRight=gameState==='walk'?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
-  const thrust =gameState==='fly'?(K['Space']?1:-JOY.ly):0;
-  const yaw    =gameState==='fly'?(K['KeyA']?1:K['KeyD']?-1:JOY.lx):0;
-  const pitch  =gameState==='fly'?(K['KeyW']?1:K['KeyS']?-1:JOY.ry):0;
-  const roll   =gameState==='fly'?(K['KeyQ']?1:K['KeyE']?-1:-JOY.rx):0;
+  const moveFwd=(gameState==='walk'||gameState==='float')
+    ?(K['KeyW']||K['ArrowUp']?1:K['KeyS']||K['ArrowDown']?-1:-JOY.ly):0;
+  const moveRight=(gameState==='walk'||gameState==='float')
+    ?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
+  const thrust=gameState==='fly'?(K['Space']?1:-JOY.ly):0;
+  const yaw   =gameState==='fly'?(K['KeyA']?1:K['KeyD']?-1:JOY.lx):0;
+  const pitch =gameState==='fly'?(K['KeyW']?1:K['KeyS']?-1:JOY.ry):0;
+  const roll  =gameState==='fly'?(K['KeyQ']?1:K['KeyE']?-1:-JOY.rx):0;
 
   nbodyStep(dt);
   updateTails();
   updateRemotePlayers(dt);
 
   broadcastTimer-=dt;
-  if(broadcastTimer<=0){ broadcastTimer=BROADCAST_RATE; broadcastState(); }
+  if(broadcastTimer<=0){broadcastTimer=BROADCAST_RATE;broadcastState();}
+
+  shootCooldown-=dt;
+  // Hold-to-shoot (hold left mouse not via event but via K)
+  // Auto-fire while holding shoot key
+  if(K['KeyF1']&&shootCooldown<=0&&gameReady){fireShot();shootCooldown=SHOOT_COOLDOWN;}
 
   PLANET_DEFS[0].mesh.rotation.y+=.00008;
   PLANET_DEFS[1].mesh.rotation.y+=.00005;
@@ -1109,28 +1449,38 @@ function loop(){
   PLANET_DEFS[3].mesh.rotation.y+=.00003;
   PLANET_DEFS[4].mesh.rotation.y+=.00015;
 
-  if(fxTimer>0){ fxTimer-=dt; if(fxTimer<=0)fxEl.style.opacity='0'; }
+  if(fxTimer>0){fxTimer-=dt;if(fxTimer<=0)fxEl.style.opacity='0';}
+
+  updateExplosions(dt);
+  updateLocalProjs(dt);
+  updateVisualProjs(dt);
 
   if(gameState==='walk'){
     walkStep(dt,moveFwd,moveRight);
     walkCamera();
     const cw=new THREE.Vector3(),sw=new THREE.Vector3();
-    charPivot.getWorldPosition(cw);shipPivot.getWorldPosition(sw);
-    if(cw.distanceTo(sw)<1.9) document.getElementById('hint').textContent=' [ E ] board ship 🚀 ';
-  } else {
+    charPivot.getWorldPosition(cw); shipPivot.getWorldPosition(sw);
+    if(cw.distanceTo(sw)<1.9)
+      document.getElementById('hint').textContent='[ E ] board ship';
+    else
+      document.getElementById('hint').textContent=
+        'click to aim · WASD·move · SHIFT·run · E·board · click·shoot · ESC·unlock';
+  } else if(gameState==='fly'){
     shipFlyStep(dt,thrust,yaw,pitch,roll);
     flyCamera();
-    updateProjs(dt);
-    updateHit(dt);
     if(thrust!==0) refreshOrbits();
-    else{ orbitTimer-=dt; if(orbitTimer<=0){orbitTimer=3;refreshOrbits();} }
+    else{orbitTimer-=dt;if(orbitTimer<=0){orbitTimer=3;refreshOrbits();}}
     const canLand=PLANET_DEFS.some(pd=>shipPos.distanceTo(pd.physPos)<pd.R+3.5);
-    document.getElementById('hint').textContent=canLand?' [ F ] land 🪐 ':' SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  RClick·mine  LClick·deposit  F·land ';
+    document.getElementById('hint').textContent=canLand
+      ?'[ F ] land'
+      :'SPACE·thrust  A/D·yaw  W/S·pitch  Q/E·roll  CLICK·shoot  F·land';
+  } else { // float
+    floatStep(dt);
+    floatCamera();
   }
 
   renderer.render(scene,camera);
 }
-
 loop();
 setTimeout(refreshOrbits,300);
 
