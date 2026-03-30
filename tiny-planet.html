@@ -618,7 +618,7 @@ function walkCamera(){
   camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
   // Camera sits behind character at azimuth defined by camFwd, tilted up by camElevation
   const camBack=camFwd.clone().negate();
-  const CAM_DIST=2.6;
+  const CAM_DIST=0.9;
   camera.position.copy(_cwp)
     .addScaledVector(camBack, CAM_DIST*Math.cos(camElevation))
     .addScaledVector(wUp,     CAM_DIST*Math.sin(camElevation));
