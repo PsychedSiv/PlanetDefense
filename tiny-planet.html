@@ -1047,9 +1047,9 @@ function updateUI(){
   document.getElementById('xhair').style.display=
     (document.pointerLockElement===renderer.domElement)?'block':'none';
   document.getElementById('hint').textContent=fly
-    ?'click·lock  WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F·land'
+    ?'click·lock  WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F/↓·land'
     :flt?'drifting — click to aim+shoot'
-    :'click to aim · WASD·move · SHIFT·run · E·board · CLICK·shoot · ESC·unlock';
+    :'click to aim · WASD·move · SHIFT·run · E/↑·board · CLICK·shoot · ESC·unlock';
 }
 updateUI(); updateHud();
 
@@ -1064,12 +1064,12 @@ addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT') return;
   K[e.code]=true;
   if(e.code==='ShiftLeft'||e.code==='ShiftRight') isRunning=!isRunning;
-  if(e.code==='KeyE'&&gameState==='walk'){
+  if((e.code==='KeyE'||e.code==='ArrowUp')&&gameState==='walk'){
     const cw=new THREE.Vector3(),sw=new THREE.Vector3();
     charPivot.getWorldPosition(cw); shipPivot.getWorldPosition(sw);
     if(cw.distanceTo(sw)<1.9) enterShip();
   }
-  if(e.code==='KeyF'&&gameState==='fly') tryLand();
+  if((e.code==='KeyF'||e.code==='ArrowDown')&&gameState==='fly') tryLand();
   if(e.code==='Space'&&gameState==='fly'){} // handled in loop
   e.preventDefault();
 });
@@ -1491,8 +1491,8 @@ function loop(){
     else{orbitTimer-=dt;if(orbitTimer<=0){orbitTimer=3;refreshOrbits();}}
     const canLand=PLANET_DEFS.some(pd=>shipPos.distanceTo(pd.physPos)<pd.R+3.5);
     document.getElementById('hint').textContent=canLand
-      ?'[ F ] land'
-      :'WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F·land';
+      ?'[ F / ↓ ] land'
+      :'WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F/↓·land';
   } else { // float
     floatStep(dt);
     floatCamera();
