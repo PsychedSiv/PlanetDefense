@@ -883,15 +883,22 @@ function fireShot(){
     const _me=charPivot.matrixWorld.elements;
     const wUp=new THREE.Vector3(_me[4],_me[5],_me[6]).normalize();
     charPivot.getWorldPosition(origin=new THREE.Vector3());
-    // Aim direction: horizontal camFwd tilted by elevation
-    dir=camFwd.clone().multiplyScalar(Math.cos(camElevation))
-      .addScaledVector(wUp,Math.sin(camElevation)).normalize();
-    // Muzzle: slightly forward + up
-    origin.addScaledVector(dir,.3).addScaledVector(wUp,.5);
+    // Muzzle: slightly above character centre (gun height)
+    origin.addScaledVector(wUp,.7);
+    // TPS aim: ray from camera through crosshair → far hit point
+    // Bullet direction = muzzle → hit point (matches what player sees at screen centre)
+    camera.updateMatrixWorld();
+    const camDir=new THREE.Vector3(); camera.getWorldDirection(camDir);
+    const traceHit=camera.position.clone().addScaledVector(camDir,200);
+    dir=traceHit.sub(origin).normalize();
     color=0xff8822; type='astro';
   } else { // float
     origin=floatPos.clone().addScaledVector(camFwd,.4);
-    dir=camFwd.clone(); color=0xff8822; type='astro';
+    camera.updateMatrixWorld();
+    const camDir=new THREE.Vector3(); camera.getWorldDirection(camDir);
+    const traceHit=camera.position.clone().addScaledVector(camDir,200);
+    dir=traceHit.sub(origin).normalize();
+    color=0xff8822; type='astro';
   }
   const vel=dir.clone().multiplyScalar(SHOT_SPEED);
   if(gameState==='fly') vel.add(shipVel);
