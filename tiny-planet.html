@@ -502,8 +502,10 @@ function updateStarVisuals(){
   const col=starColorFromSize(sz);
   sunLight.color.copy(col);
   sunMat.uniforms.tint.value.copy(col);
-  // Keep new star's planet mesh visible while it's still travelling to center
-  PLANET_DEFS.forEach((pd,i)=>{ pd.pivot.visible=(i!==starIdx)||starTransition!==null; });
+  // Generic sun sphere only shown when original sun is the star.
+  // Star planet keeps its own pivot visible (preserves its colors and rings).
+  sunMesh.visible=(starIdx<0);
+  PLANET_DEFS.forEach(pd=>{ pd.pivot.visible=true; });
   updateTableStarMarkers();
 }
 
@@ -585,12 +587,11 @@ function keplerStep(dt){
 
     if(starTransition.elapsed>=starTransition.duration){
       starTransition=null;
-      // Snap star to exact origin and hide its planet mesh
+      // Snap star planet exactly to origin
       if(starIdx>=0){
         PLANET_DEFS[starIdx].physPos.set(0,0,0);
         PLANET_DEFS[starIdx].pivot.position.set(0,0,0);
       }
-      updateStarVisuals(); // hides star planet pivot now that animation is done
     }
     return;
   }
