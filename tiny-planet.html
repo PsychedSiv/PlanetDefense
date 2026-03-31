@@ -262,7 +262,7 @@ const PLANET_DEFS=[
 
 PLANET_DEFS.forEach(pd=>{
   pd.size=pd.R; pd.baseR=pd.R;
-  pd.a=pd.dist;
+  pd.a=pd.dist; pd.a0=pd.dist; // a0 = base orbit radius, rescaled on star transitions
   pd.inc=Math.atan2(-pd.yi,pd.dist);
   pd.phase=pd.angle;
   pd.gm=pd.R*.35;
@@ -549,6 +549,9 @@ function checkStarTransition(){
     }
   }
 
+  // Lock in new base orbital radii so future size changes scale from here
+  PLANET_DEFS.forEach((pd,i)=>{ if(i!==newIdx) pd.a0=pd.a/Math.max(pd.size/pd.baseR,0.01); });
+
   starIdx=newIdx;
   starTransition={elapsed:0, duration:4.0, fromPos};
   updateStarVisuals();
@@ -602,6 +605,8 @@ function keplerStep(dt){
       pd.physPos.set(0,0,0); pd.vel.set(0,0,0);
       pd.pivot.position.set(0,0,0); return;
     }
+    // Orbital radius scales with planet size: bigger planet = wider orbit
+    pd.a=pd.a0*Math.max(pd.size/pd.baseR,0.01);
     const omega=Math.sqrt(GM/Math.pow(pd.a,3));
     pd.phase+=omega*dt;
     const cx=pd.a*Math.cos(pd.phase), sz=pd.a*Math.sin(pd.phase);
