@@ -6,7 +6,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;overflow:hidden;font-family:'Courier New',monospace}
-canvas{display:block}
+canvas{display:block;position:relative;z-index:0}
 #label{position:fixed;top:14px;left:50%;transform:translateX(-50%);font-family:Georgia,serif;
   font-size:13px;font-style:italic;color:rgba(255,255,255,.18);letter-spacing:.22em;pointer-events:none}
 #hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);font-size:11px;
@@ -58,6 +58,21 @@ canvas{display:block}
 #bShoot {right:86px; bottom:74px; width:50px;height:50px}
 #bLand  {left:50%;bottom:28px;transform:translateX(-50%);width:56px;height:56px;display:none}
 #bThrust{right:152px;bottom:20px;width:50px;height:50px;display:none}
+/* Planet size table */
+#planet-table{position:fixed;top:100px;left:16px;background:rgba(0,0,0,.85);
+  border:1px solid rgba(255,255,255,.25);padding:10px 12px;font-size:11px;
+  color:rgba(255,255,255,.8);z-index:999;border-radius:5px;min-width:190px;
+  pointer-events:all;user-select:none}
+#planet-table h3{font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.4);
+  margin-bottom:8px;font-weight:normal;text-transform:uppercase}
+.pt-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.pt-name{flex:1;font-size:10px;color:rgba(255,255,255,.65)}
+.pt-inp{width:54px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);
+  color:#fff;font-family:'Courier New',monospace;font-size:11px;padding:2px 4px;
+  border-radius:3px;text-align:right;outline:none;-moz-appearance:textfield}
+.pt-inp::-webkit-inner-spin-button,.pt-inp::-webkit-outer-spin-button{opacity:1;cursor:pointer}
+.pt-inp:focus{border-color:rgba(255,200,80,.8)}
+.pt-star{color:#ffd700;font-size:10px;min-width:10px;text-align:center}
 /* Login */
 #login-screen{position:fixed;inset:0;background:rgba(0,0,0,.94);
   display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:18px}
@@ -98,6 +113,11 @@ canvas{display:block}
 <div id="fx"></div>
 <div id="dmg-flash"></div>
 <div id="respawn-hud"></div>
+
+<div id="planet-table">
+  <h3>Solar System</h3>
+  <div id="pt-rows"></div>
+</div>
 
 <div id="ctrl">
   <div id="jL" class="joy"><div class="jbase"></div><div id="jLk" class="jknob"></div></div>
@@ -201,27 +221,31 @@ function makePlanetMat(colA,colB,colC,colD,spec){
 // ═══════════════════════════════════════════════════════════
 const SUN_R=6;
 const sunMat=new THREE.ShaderMaterial({
-  uniforms:{time:{value:0}},
+  uniforms:{time:{value:0},tint:{value:new THREE.Color(1,1,1)}},
   vertexShader:`varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-  fragmentShader:`${NOISE_GLSL}uniform float time;varying vec3 vP;
+  fragmentShader:`${NOISE_GLSL}uniform float time;uniform vec3 tint;varying vec3 vP;
     void main(){vec3 n=normalize(vP);float f=fbm(n*3.+time*.15),f2=fbm(n*6.-time*.08);
       vec3 col=mix(vec3(1.,.6,.05),vec3(1.,.95,.2),f);col=mix(col,vec3(.9,.3,.0),f2*.4);
-      gl_FragColor=vec4(col,1.);}`
+      gl_FragColor=vec4(col*tint,1.);}`
 });
+const sunGroup=new THREE.Group(); scene.add(sunGroup);
 const sunMesh=new THREE.Mesh(new THREE.SphereGeometry(SUN_R,48,48),sunMat);
-scene.add(sunMesh);
+sunGroup.add(sunMesh);
 [[1.25,0xffaa00,.22],[1.55,0xff6600,.10],[2.0,0xff3300,.04]].forEach(([s,c,o])=>{
-  scene.add(new THREE.Mesh(new THREE.SphereGeometry(SUN_R*s,24,24),
+  sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(SUN_R*s,24,24),
     new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,side:THREE.BackSide,
       blending:THREE.AdditiveBlending,depthWrite:false})));
 });
-const sunLight=new THREE.PointLight(0xfff4e0,2.2,0); scene.add(sunLight);
+const sunLight=new THREE.PointLight(0xfff4e0,2.2,0); sunGroup.add(sunLight);
 scene.add(new THREE.AmbientLight(0x0d1a33,.6));
 
 // ═══════════════════════════════════════════════════════════
 //  PLANETS
 // ═══════════════════════════════════════════════════════════
-const GM_SUN=120;
+let sunSize=SUN_R;   // adjustable star size (when original sun is the star)
+let starIdx=-1;      // -1=original sun is star, 0-4=that planet is star
+const KEPLER_G=20;   // GM_star = KEPLER_G * starSize; 20*6=120 matches original periods
+
 const PLANET_DEFS=[
   {name:'p1',label:'green world', R:3.5,dist:28,yi:0, angle:0,
    colA:0x1a5fa8,colB:0xd4a96a,colC:0x5a9e60,colD:0xeef6ff,spec:.6,atmoColor:0x4488ff,atmoI:.8,trailCol:0x44aaff},
@@ -236,10 +260,19 @@ const PLANET_DEFS=[
 ];
 
 PLANET_DEFS.forEach(pd=>{
-  pd.physPos=new THREE.Vector3(Math.cos(pd.angle)*pd.dist,pd.yi,Math.sin(pd.angle)*pd.dist);
-  const v=Math.sqrt(GM_SUN/pd.dist);
-  pd.vel=new THREE.Vector3(-Math.sin(pd.angle)*v,0,Math.cos(pd.angle)*v);
-  pd.gm=pd.R*.35; pd.baseR=pd.R;
+  pd.size=pd.R; pd.baseR=pd.R;
+  pd.a=pd.dist;
+  pd.inc=Math.atan2(-pd.yi,pd.dist);
+  pd.phase=pd.angle;
+  pd.gm=pd.R*.35;
+  // Init physPos from Kepler elements
+  const cx0=pd.a*Math.cos(pd.phase),sz0=pd.a*Math.sin(pd.phase);
+  pd.physPos=new THREE.Vector3(cx0,-sz0*Math.sin(pd.inc),sz0*Math.cos(pd.inc));
+  // Init velocity analytically (circular orbit, GM=120 initially)
+  const om0=Math.sqrt(120/Math.pow(pd.a,3));
+  pd.vel=new THREE.Vector3(-Math.sin(pd.phase)*om0*pd.a,
+    -Math.cos(pd.phase)*Math.sin(pd.inc)*om0*pd.a,
+     Math.cos(pd.phase)*Math.cos(pd.inc)*om0*pd.a);
   pd.mesh=new THREE.Mesh(new THREE.SphereGeometry(pd.R,64,64),makePlanetMat(pd.colA,pd.colB,pd.colC,pd.colD,pd.spec));
   pd.mesh.castShadow=true; pd.mesh.receiveShadow=true;
   pd.atmo=makeAtmosphere(pd.R,pd.atmoColor,pd.atmoI);
@@ -446,54 +479,110 @@ attachToPlanet(charPivot,activePD,new THREE.Vector3(0,1,0));
 attachToPlanet(shipPivot,activePD,new THREE.Vector3(.7,.7,.1).normalize(),.01);
 
 // ═══════════════════════════════════════════════════════════
-//  N-BODY VELOCITY VERLET
+//  KEPLER ORBITAL MECHANICS
 // ═══════════════════════════════════════════════════════════
-function gravAccel(bodies,idx){
-  const p=bodies[idx].pos;
-  const r2s=Math.max(p.x*p.x+p.y*p.y+p.z*p.z,1), rs=Math.sqrt(r2s), f0=GM_SUN/(r2s*rs);
-  let ax=-p.x*f0, ay=-p.y*f0, az=-p.z*f0;
-  bodies.forEach((b,j)=>{
-    if(j===idx)return;
-    const dx=b.pos.x-p.x,dy=b.pos.y-p.y,dz=b.pos.z-p.z;
-    const r2=Math.max(dx*dx+dy*dy+dz*dz,1),rs2=Math.sqrt(r2),f=b.gm/(r2*rs2);
+function getCurrentStarSize(){
+  return starIdx<0 ? sunSize : PLANET_DEFS[starIdx].size;
+}
+
+// Map star size to a light/surface color (small=red, mid=yellow, large=blue)
+function starColorFromSize(sz){
+  const t=Math.min(1,Math.max(0,(sz-1)/24)); // 0→1 over size range 1–25
+  const c=new THREE.Color();
+  if(t<0.33)  c.setRGB(1.0, 0.35+t*1.3,  0.05+t*0.4);  // red→orange
+  else if(t<0.66) c.setRGB(1.0, 0.78+(t-.33)*0.6, 0.2+(t-.33)*1.5); // orange→yellow
+  else        c.setRGB(0.85+(t-.66)*.4, 0.92+(t-.66)*.2, 1.0);       // yellow→blue-white
+  return c;
+}
+
+function updateStarVisuals(){
+  const sz=getCurrentStarSize();
+  sunGroup.scale.setScalar(sz/SUN_R);
+  const col=starColorFromSize(sz);
+  sunLight.color.copy(col);
+  sunMat.uniforms.tint.value.copy(col);
+  PLANET_DEFS.forEach((pd,i)=>{ pd.pivot.visible=(i!==starIdx); });
+  updateTableStarMarkers();
+}
+
+function checkStarTransition(){
+  let maxSz=sunSize, newIdx=-1;
+  PLANET_DEFS.forEach((pd,i)=>{ if(pd.size>maxSz){maxSz=pd.size;newIdx=i;} });
+  if(newIdx===starIdx) return;
+
+  // Re-enable old star planet pivot
+  if(starIdx>=0) PLANET_DEFS[starIdx].pivot.visible=true;
+
+  if(newIdx>=0){
+    // A planet becomes the new star
+    const newStarPos=PLANET_DEFS[newIdx].physPos.clone();
+    PLANET_DEFS.forEach((pd,i)=>{
+      if(i===newIdx) return;
+      const rel=pd.physPos.clone().sub(newStarPos);
+      pd.a=Math.max(rel.length(),5);
+      pd.phase=Math.atan2(rel.z,rel.x);
+      pd.inc=Math.atan2(-rel.y,Math.max(pd.a,.1));
+    });
+    // Old star (if was a planet) also gets new orbital elements
+    if(starIdx>=0){
+      const rel=PLANET_DEFS[starIdx].physPos.clone().sub(newStarPos);
+      PLANET_DEFS[starIdx].a=Math.max(rel.length(),5);
+      PLANET_DEFS[starIdx].phase=Math.atan2(rel.z,rel.x);
+    }
+    PLANET_DEFS[newIdx].physPos.set(0,0,0);
+    PLANET_DEFS[newIdx].pivot.position.set(0,0,0);
+  } else {
+    // Original sun reclaims star — re-orbit all planets around origin
+    PLANET_DEFS.forEach((pd,i)=>{
+      if(i===starIdx) return;
+      const rel=pd.physPos.clone();
+      pd.a=Math.max(rel.length(),5);
+      pd.phase=Math.atan2(rel.z,rel.x);
+      pd.inc=Math.atan2(-rel.y,Math.max(pd.a,.1));
+    });
+    // Ex-star planet returns to its original orbital distance
+    if(starIdx>=0){
+      PLANET_DEFS[starIdx].a=PLANET_DEFS[starIdx].dist;
+      PLANET_DEFS[starIdx].phase=PLANET_DEFS[starIdx].angle;
+      PLANET_DEFS[starIdx].inc=Math.atan2(-PLANET_DEFS[starIdx].yi,PLANET_DEFS[starIdx].dist);
+      const cx=PLANET_DEFS[starIdx].a*Math.cos(PLANET_DEFS[starIdx].phase);
+      const sz=PLANET_DEFS[starIdx].a*Math.sin(PLANET_DEFS[starIdx].phase);
+      PLANET_DEFS[starIdx].physPos.set(cx,-sz*Math.sin(PLANET_DEFS[starIdx].inc),sz*Math.cos(PLANET_DEFS[starIdx].inc));
+    }
+  }
+  starIdx=newIdx;
+}
+
+function keplerStep(dt){
+  const GM=KEPLER_G*getCurrentStarSize();
+  PLANET_DEFS.forEach((pd,i)=>{
+    if(i===starIdx){
+      pd.physPos.set(0,0,0); pd.vel.set(0,0,0);
+      pd.pivot.position.set(0,0,0); return;
+    }
+    const omega=Math.sqrt(GM/Math.pow(pd.a,3));
+    pd.phase+=omega*dt;
+    const cx=pd.a*Math.cos(pd.phase), sz=pd.a*Math.sin(pd.phase);
+    pd.physPos.set(cx,-sz*Math.sin(pd.inc),sz*Math.cos(pd.inc));
+    pd.vel.set(-Math.sin(pd.phase)*omega*pd.a,
+               -Math.cos(pd.phase)*Math.sin(pd.inc)*omega*pd.a,
+                Math.cos(pd.phase)*Math.cos(pd.inc)*omega*pd.a);
+    pd.pivot.position.copy(pd.physPos);
+  });
+}
+
+// Gravity for ship/float: star at origin + planet masses
+function gravAccel(pos){
+  const r2s=Math.max(pos.x*pos.x+pos.y*pos.y+pos.z*pos.z,1),rs=Math.sqrt(r2s);
+  const f0=KEPLER_G*getCurrentStarSize()/(r2s*rs);
+  let ax=-pos.x*f0, ay=-pos.y*f0, az=-pos.z*f0;
+  PLANET_DEFS.forEach((pd,i)=>{
+    if(i===starIdx) return;
+    const dx=pd.physPos.x-pos.x,dy=pd.physPos.y-pos.y,dz=pd.physPos.z-pos.z;
+    const r2=Math.max(dx*dx+dy*dy+dz*dz,1),rs2=Math.sqrt(r2),f=pd.gm/(r2*rs2);
     ax+=dx*f; ay+=dy*f; az+=dz*f;
   });
   return {x:ax,y:ay,z:az};
-}
-function verlet(bodies,dt){
-  const a0=bodies.map((_,i)=>gravAccel(bodies,i));
-  bodies.forEach((b,i)=>{b.pos.x+=b.vel.x*dt+.5*a0[i].x*dt*dt;b.pos.y+=b.vel.y*dt+.5*a0[i].y*dt*dt;b.pos.z+=b.vel.z*dt+.5*a0[i].z*dt*dt;});
-  const a1=bodies.map((_,i)=>gravAccel(bodies,i));
-  bodies.forEach((b,i)=>{b.vel.x+=.5*(a0[i].x+a1[i].x)*dt;b.vel.y+=.5*(a0[i].y+a1[i].y)*dt;b.vel.z+=.5*(a0[i].z+a1[i].z)*dt;});
-}
-const planetBodies=PLANET_DEFS.map(pd=>({pos:pd.physPos,vel:pd.vel,gm:pd.gm}));
-
-// ── Physics host: lexicographically lowest player ID runs the planet simulation
-let isPhysicsHost=true;
-let planetSyncAge=Infinity; // seconds since last remote planet sync received
-
-function updatePhysicsHostRole(){
-  const ids=Object.keys(remotePlayers);
-  if(ids.length===0){isPhysicsHost=true;return;}
-  const all=[myId,...ids].sort();
-  isPhysicsHost=(all[0]===myId);
-}
-
-function nbodyStep(dt){
-  planetSyncAge+=dt;
-  if(!isPhysicsHost && planetSyncAge<2.0){
-    PLANET_DEFS.forEach(pd=>{
-      if(pd.remoteTarget){
-        const prev=pd.physPos.clone();
-        pd.physPos.lerp(pd.remoteTarget,Math.min(1,dt*6));
-        pd.vel.copy(pd.physPos).sub(prev).divideScalar(Math.max(dt,.001));
-      }
-      pd.pivot.position.copy(pd.physPos);
-    });
-  } else {
-    verlet(planetBodies,dt);
-    PLANET_DEFS.forEach(pd=>pd.pivot.position.copy(pd.physPos));
-  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -598,10 +687,9 @@ function shipFlyStep(dt,thrustFB,strafeRL,roll){
   if(roll){  const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
   if(thrustFB) shipVel.addScaledVector(getShipFwd(),thrustFB*SHIP_SPEED*dt);
   if(strafeRL){const r=new THREE.Vector3(1,0,0).applyQuaternion(shipQ).normalize(); shipVel.addScaledVector(r,strafeRL*SHIP_SPEED*dt);}
-  const allB=[...planetBodies,shipPhysBody];
-  const a0=gravAccel(allB,allB.length-1);
+  const a0=gravAccel(shipPos);
   shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt; shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt; shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
-  const a1=gravAccel(allB,allB.length-1);
+  const a1=gravAccel(shipPos);
   shipVel.x+=.5*(a0.x+a1.x)*dt; shipVel.y+=.5*(a0.y+a1.y)*dt; shipVel.z+=.5*(a0.z+a1.z)*dt;
   shipPivot.position.copy(shipPos);
   shipPivot.setRotationFromQuaternion(shipQ);
@@ -633,9 +721,8 @@ function enterFloat(){
 }
 
 function floatStep(dt){
-  // Apply gravity from all planets + sun
-  const allB=[...planetBodies,floatPhysBody];
-  const a=gravAccel(allB,allB.length-1);
+  // Apply gravity from star + planets
+  const a=gravAccel(floatPos);
   floatPos.x+=floatVel.x*dt+.5*a.x*dt*dt;
   floatPos.y+=floatVel.y*dt+.5*a.y*dt*dt;
   floatPos.z+=floatVel.z*dt+.5*a.z*dt*dt;
@@ -820,32 +907,41 @@ function makeOLine(color,opacity){
 const ORBIT_LINES=PLANET_DEFS.map(pd=>makeOLine(pd.trailCol,.15));
 const SHIP_ORBIT=makeOLine(0xffffff,.7);
 function refreshOrbits(){
-  const pos=PLANET_DEFS.map(pd=>({x:pd.physPos.x,y:pd.physPos.y,z:pd.physPos.z}));
-  const vel=PLANET_DEFS.map(pd=>({x:pd.vel.x,y:pd.vel.y,z:pd.vel.z}));
-  const paths=PLANET_DEFS.map(()=>new Float32Array(OSTEPS*3));
-  let sP=gameState==='fly'?{x:shipPos.x,y:shipPos.y,z:shipPos.z}:null;
-  let sV=gameState==='fly'?{x:shipVel.x,y:shipVel.y,z:shipVel.z}:null;
-  const sPth=new Float32Array(OSTEPS*3); let sC=0;
-  const fb=PLANET_DEFS.map((pd,i)=>({pos:pos[i],vel:vel[i],gm:pd.gm}));
-  for(let s=0;s<OSTEPS;s++){
-    const a0=fb.map((_,i)=>gravAccel(fb,i));
-    fb.forEach((b,i)=>{b.pos.x+=b.vel.x*ODT+.5*a0[i].x*ODT*ODT;b.pos.y+=b.vel.y*ODT+.5*a0[i].y*ODT*ODT;b.pos.z+=b.vel.z*ODT+.5*a0[i].z*ODT*ODT;});
-    const a1=fb.map((_,i)=>gravAccel(fb,i));
-    fb.forEach((b,i)=>{b.vel.x+=.5*(a0[i].x+a1[i].x)*ODT;b.vel.y+=.5*(a0[i].y+a1[i].y)*ODT;b.vel.z+=.5*(a0[i].z+a1[i].z)*ODT;});
-    fb.forEach((b,i)=>{paths[i][s*3]=b.pos.x;paths[i][s*3+1]=b.pos.y;paths[i][s*3+2]=b.pos.z;});
-    if(sP){
-      const ab=[...fb,{pos:sP,vel:sV,gm:0}]; const sa0=gravAccel(ab,ab.length-1);
-      sP.x+=sV.x*ODT+.5*sa0.x*ODT*ODT; sP.y+=sV.y*ODT+.5*sa0.y*ODT*ODT; sP.z+=sV.z*ODT+.5*sa0.z*ODT*ODT;
-      const ab2=[...fb,{pos:sP,vel:sV,gm:0}]; const sa1=gravAccel(ab2,ab2.length-1);
-      sV.x+=.5*(sa0.x+sa1.x)*ODT; sV.y+=.5*(sa0.y+sa1.y)*ODT; sV.z+=.5*(sa0.z+sa1.z)*ODT;
-      sPth[sC*3]=sP.x; sPth[sC*3+1]=sP.y; sPth[sC*3+2]=sP.z; sC++;
-      if(sP.x*sP.x+sP.y*sP.y+sP.z*sP.z>800*800) sP=null;
+  const fly=gameState==='fly';
+  // Analytical Kepler ellipses for each planet
+  PLANET_DEFS.forEach((pd,i)=>{
+    if(i===starIdx){ORBIT_LINES[i].visible=false;return;}
+    ORBIT_LINES[i].visible=fly;
+    if(!fly) return;
+    const pts=ORBIT_LINES[i].geometry.attributes.position.array;
+    for(let s=0;s<OSTEPS;s++){
+      const ph=(s/OSTEPS)*Math.PI*2;
+      const cx=pd.a*Math.cos(ph), sz=pd.a*Math.sin(ph);
+      pts[s*3]=cx; pts[s*3+1]=-sz*Math.sin(pd.inc); pts[s*3+2]=sz*Math.cos(pd.inc);
+    }
+    ORBIT_LINES[i].geometry.attributes.position.needsUpdate=true;
+    ORBIT_LINES[i].geometry.setDrawRange(0,OSTEPS);
+  });
+  // Ship orbit trace (Verlet with current planet positions fixed)
+  SHIP_ORBIT.visible=false;
+  if(fly){
+    const sPth=new Float32Array(OSTEPS*3); let sC=0;
+    const sP=shipPos.clone(), sV=shipVel.clone();
+    for(let s=0;s<OSTEPS;s++){
+      const a0=gravAccel(sP);
+      sP.x+=sV.x*ODT+.5*a0.x*ODT*ODT;sP.y+=sV.y*ODT+.5*a0.y*ODT*ODT;sP.z+=sV.z*ODT+.5*a0.z*ODT*ODT;
+      const a1=gravAccel(sP);
+      sV.x+=.5*(a0.x+a1.x)*ODT;sV.y+=.5*(a0.y+a1.y)*ODT;sV.z+=.5*(a0.z+a1.z)*ODT;
+      sPth[sC*3]=sP.x;sPth[sC*3+1]=sP.y;sPth[sC*3+2]=sP.z;sC++;
+      if(sP.lengthSq()>800*800) break;
+    }
+    if(sC>0){
+      SHIP_ORBIT.geometry.attributes.position.array.set(sPth);
+      SHIP_ORBIT.geometry.attributes.position.needsUpdate=true;
+      SHIP_ORBIT.geometry.setDrawRange(0,sC);
+      SHIP_ORBIT.visible=true;
     }
   }
-  const fly=gameState==='fly';
-  PLANET_DEFS.forEach((pd,i)=>{ORBIT_LINES[i].geometry.attributes.position.array.set(paths[i]);ORBIT_LINES[i].geometry.attributes.position.needsUpdate=true;ORBIT_LINES[i].geometry.setDrawRange(0,OSTEPS);ORBIT_LINES[i].visible=fly;});
-  if(fly&&sC>0){SHIP_ORBIT.geometry.attributes.position.array.set(sPth);SHIP_ORBIT.geometry.attributes.position.needsUpdate=true;SHIP_ORBIT.geometry.setDrawRange(0,sC);SHIP_ORBIT.visible=true;}
-  else SHIP_ORBIT.visible=false;
 }
 function updateTails(){}
 
@@ -957,7 +1053,7 @@ function updateLocalProjs(dt){
     // Apply weak gravity from sun
     const ts=p.pos.clone().negate();
     const l2=Math.max(ts.lengthSq(),100);
-    p.vel.addScaledVector(ts.normalize(),GM_SUN/l2*dt);
+    p.vel.addScaledVector(ts.normalize(),KEPLER_G*getCurrentStarSize()/l2*dt);
     p.pos.addScaledVector(p.vel,dt);
     p.mesh.position.copy(p.pos);
 
@@ -1201,8 +1297,6 @@ function removeRemote(id){
   const rp=remotePlayers[id]; if(!rp)return;
   [rp.astro,rp.ship].forEach(m=>{if(m.parent)m.parent.remove(m);});
   delete remotePlayers[id];
-  updatePhysicsHostRole();
-  if(isPhysicsHost) planetSyncAge=Infinity;
 }
 
 function reparentRemote(rp,planetName){
@@ -1254,24 +1348,6 @@ function updateRemotePlayers(dt){
 function handleRemotePlayer(payload){
   if(payload.id===myId) return;
   const rp=getOrCreateRemote(payload.id,payload.name,payload.state);
-  updatePhysicsHostRole();
-
-  // Physics host sends planet positions; non-host follows
-  if(payload.planets&&!isPhysicsHost){
-    payload.planets.forEach(([x,y,z,vx,vy,vz],i)=>{
-      if(!PLANET_DEFS[i]) return;
-      const firstSync=!PLANET_DEFS[i].remoteTarget;
-      if(!PLANET_DEFS[i].remoteTarget) PLANET_DEFS[i].remoteTarget=new THREE.Vector3();
-      PLANET_DEFS[i].remoteTarget.set(x,y,z);
-      // Also sync velocity so physics is accurate when we take over
-      if(vx!==undefined) PLANET_DEFS[i].vel.set(vx,vy,vz);
-      if(firstSync){
-        PLANET_DEFS[i].physPos.copy(PLANET_DEFS[i].remoteTarget);
-        PLANET_DEFS[i].pivot.position.copy(PLANET_DEFS[i].remoteTarget);
-      }
-    });
-    planetSyncAge=0;
-  }
 
   rp.state=payload.state;
   if(payload.hp!==undefined) rp.hp=payload.hp;
@@ -1354,18 +1430,11 @@ function broadcastState(){
     vx=0; vy=0; vz=0;
     planet=activePD.name;
   }
-  // Host broadcasts planet positions + velocities for sync
-  const planets=isPhysicsHost
-    ? PLANET_DEFS.map(pd=>[
-        +pd.physPos.x.toFixed(2),+pd.physPos.y.toFixed(2),+pd.physPos.z.toFixed(2),
-        +pd.vel.x.toFixed(3),+pd.vel.y.toFixed(3),+pd.vel.z.toFixed(3)
-      ])
-    : undefined;
   channel.send({
     type:'broadcast',event:'player',
     payload:{id:myId,name:myName,state:gameState,
       px,py,pz,qx,qy,qz,qw,vx,vy,vz,planet,
-      hp:myHp,shipHp:myShipHp,planets}
+      hp:myHp,shipHp:myShipHp}
   });
 }
 
@@ -1443,7 +1512,7 @@ function loop(){
   const strafeRL=gameState==='fly'?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
   const roll    =gameState==='fly'?(K['KeyQ']?1:K['KeyE']?-1:-JOY.rx):0;
 
-  nbodyStep(dt);
+  keplerStep(dt);
   updateTails();
   updateRemotePlayers(dt);
 
@@ -1495,6 +1564,57 @@ function loop(){
 }
 loop();
 setTimeout(refreshOrbits,300);
+
+// ── Planet size table ──────────────────────────────────────
+function updateTableStarMarkers(){
+  const sunEl=document.getElementById('ptstar-sun');
+  if(sunEl) sunEl.textContent=(starIdx<0)?'★':'';
+  PLANET_DEFS.forEach((pd,i)=>{
+    const el=document.getElementById('ptstar-'+i);
+    if(el) el.textContent=(i===starIdx)?'★':'';
+  });
+}
+
+function makeTableRow(starId,label,initSize){
+  const row=document.createElement('div'); row.className='pt-row';
+  const star=document.createElement('span'); star.className='pt-star'; star.id='ptstar-'+starId;
+  const name=document.createElement('span'); name.className='pt-name'; name.textContent=label;
+  const inp=document.createElement('input');
+  inp.type='number'; inp.className='pt-inp'; inp.id='ptval-'+starId;
+  inp.min='0.1'; inp.step='0.5'; inp.value=initSize.toFixed(1);
+  inp.addEventListener('input',()=>{
+    const v=parseFloat(inp.value); if(isNaN(v)||v<0.1) return;
+    applySize(starId,v);
+  });
+  inp.addEventListener('mousedown',e=>e.stopPropagation());
+  inp.addEventListener('click',e=>e.stopPropagation());
+  row.appendChild(star); row.appendChild(name); row.appendChild(inp);
+  return row;
+}
+
+function applySize(starId,v){
+  if(starId==='sun'){
+    sunSize=Math.max(0.1,v);
+  } else {
+    const i=parseInt(starId); const pd=PLANET_DEFS[i];
+    pd.size=Math.max(0.1,v);
+    pd.gm=pd.size*.35;
+    pd.pivot.scale.setScalar(pd.size/pd.baseR);
+  }
+  checkStarTransition();
+  updateStarVisuals();
+  refreshOrbits();
+}
+
+function buildPlanetTable(){
+  const rows=document.getElementById('pt-rows');
+  rows.innerHTML='';
+  rows.appendChild(makeTableRow('sun','Star',sunSize));
+  PLANET_DEFS.forEach((pd,i)=>rows.appendChild(makeTableRow(String(i),pd.label,pd.size)));
+}
+
+buildPlanetTable();
+updateStarVisuals();
 
 addEventListener('resize',()=>{
   renderer.setSize(innerWidth,innerHeight);
