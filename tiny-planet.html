@@ -774,12 +774,17 @@ function walkCamera(){
   const wUp=new THREE.Vector3(me[4],me[5],me[6]).normalize();
   charPivot.getWorldPosition(_cwp);
   camFwd.addScaledVector(wUp,-camFwd.dot(wUp)).normalize();
-  // Camera orbits behind character along aim direction; lookAt keeps character in frame
+  // Over-the-shoulder: camera behind+right, looks forward past character
+  const camRight=new THREE.Vector3().crossVectors(wUp,camFwd).normalize();
   const aimDir=camFwd.clone().multiplyScalar(Math.cos(camElevation))
     .addScaledVector(wUp,Math.sin(camElevation));
-  camera.position.copy(_cwp).addScaledVector(aimDir,-5.5);
+  camera.position.copy(_cwp)
+    .addScaledVector(aimDir,-5.5)
+    .addScaledVector(camRight,0.75)
+    .addScaledVector(wUp,0.4);
   camera.up.copy(wUp);
-  camera.lookAt(_cwp.clone().addScaledVector(wUp,0.5));
+  // Look at a point ahead+eye-level: character sits left-of-center, crosshair aims forward
+  camera.lookAt(_cwp.clone().addScaledVector(camFwd,2.0).addScaledVector(wUp,0.8));
 }
 function flyCamera(){
   const fwd=getShipFwd(),up=getShipUp();
@@ -792,11 +797,15 @@ function floatCamera(){
   let nearD=Infinity;
   PLANET_DEFS.forEach(pd=>{const d=floatPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;up=floatPos.clone().sub(pd.physPos).normalize();}});
   camFwd.addScaledVector(up,-camFwd.dot(up)).normalize();
+  const camRight=new THREE.Vector3().crossVectors(up,camFwd).normalize();
   const aimDir=camFwd.clone().multiplyScalar(Math.cos(camElevation))
     .addScaledVector(up,Math.sin(camElevation));
-  camera.position.copy(floatPos).addScaledVector(aimDir,-5.5);
+  camera.position.copy(floatPos)
+    .addScaledVector(aimDir,-5.5)
+    .addScaledVector(camRight,0.75)
+    .addScaledVector(up,0.4);
   camera.up.copy(up);
-  camera.lookAt(floatPos.clone().addScaledVector(up,0.5));
+  camera.lookAt(floatPos.clone().addScaledVector(camFwd,2.0).addScaledVector(up,0.8));
 }
 
 // ═══════════════════════════════════════════════════════════
