@@ -518,7 +518,7 @@ let isRunning=false, stepT=0;
 let charFwd=new THREE.Vector3(0,0,1);
 let camFwd=new THREE.Vector3(0,0,1);
 let camElevation=0.15;  // bullet aim elevation only (0=horizontal)
-const CAM_ELEV_MIN=-0.55, CAM_ELEV_MAX=0.85;
+const CAM_ELEV_MIN=-1.3, CAM_ELEV_MAX=0.85;
 
 function walkStep(dt,moveFwd,moveRight){
   const speed=WALK_SPEED*(isRunning?RUN_MULT:1)*dt;
