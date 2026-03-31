@@ -193,12 +193,13 @@ const NOISE_GLSL=`
 function makePlanetMat(colA,colB,colC,colD,spec){
   return new THREE.ShaderMaterial({
     uniforms:{colA:{value:new THREE.Color(colA)},colB:{value:new THREE.Color(colB)},
-              colC:{value:new THREE.Color(colC)},colD:{value:new THREE.Color(colD)},specular:{value:spec||0}},
+              colC:{value:new THREE.Color(colC)},colD:{value:new THREE.Color(colD)},
+              specular:{value:spec||0},glow:{value:0.0}},
     vertexShader:`varying vec3 vNormal,vPos,vWorld;
       void main(){vNormal=normalize(normalMatrix*normal);vPos=(modelViewMatrix*vec4(position,1.)).xyz;
         vWorld=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader:`${NOISE_GLSL}
-      uniform vec3 colA,colB,colC,colD;uniform float specular;varying vec3 vNormal,vPos,vWorld;
+      uniform vec3 colA,colB,colC,colD;uniform float specular,glow;varying vec3 vNormal,vPos,vWorld;
       void main(){
         vec3 n=normalize(vNormal),viewDir=normalize(-vPos);
         vec3 sunView=normalize((viewMatrix*vec4(-vWorld,0.)).xyz);
@@ -212,6 +213,8 @@ function makePlanetMat(colA,colB,colC,colD,spec){
         float term=smoothstep(0.,.08,nDotL);
         vec3 lit=col*(.10+nDotL*.85)*(.3+.7*term);
         if(h<.35&&specular>0.){vec3 hd=normalize(sunView+viewDir);lit+=vec3(.55,.75,1.)*pow(max(dot(n,hd),0.),48.)*specular*nDotL;}
+        // When glow>0 (planet is the star) blend toward full self-illuminated brightness
+        lit=mix(lit,col*1.6,glow);
         gl_FragColor=vec4(lit,1.);}`
   });
 }
@@ -231,10 +234,12 @@ const sunMat=new THREE.ShaderMaterial({
 const sunGroup=new THREE.Group(); scene.add(sunGroup);
 const sunMesh=new THREE.Mesh(new THREE.SphereGeometry(SUN_R,48,48),sunMat);
 sunGroup.add(sunMesh);
+const sunHaloMats=[];
 [[1.25,0xffaa00,.22],[1.55,0xff6600,.10],[2.0,0xff3300,.04]].forEach(([s,c,o])=>{
-  sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(SUN_R*s,24,24),
-    new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,side:THREE.BackSide,
-      blending:THREE.AdditiveBlending,depthWrite:false})));
+  const m=new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,side:THREE.BackSide,
+    blending:THREE.AdditiveBlending,depthWrite:false});
+  sunHaloMats.push(m);
+  sunGroup.add(new THREE.Mesh(new THREE.SphereGeometry(SUN_R*s,24,24),m));
 });
 const sunLight=new THREE.PointLight(0xfff4e0,2.2,0); sunGroup.add(sunLight);
 scene.add(new THREE.AmbientLight(0x0d1a33,.6));
@@ -496,14 +501,39 @@ function starColorFromSize(sz){
   return c;
 }
 
+function planetDominantColor(pd){
+  // Blend colA (deep base) and colC (mid surface) for the dominant hue
+  return new THREE.Color(pd.colA).lerp(new THREE.Color(pd.colC),0.55);
+}
+
 function updateStarVisuals(){
   const sz=getCurrentStarSize();
   sunGroup.scale.setScalar(sz/SUN_R);
-  const col=starColorFromSize(sz);
-  sunLight.color.copy(col);
-  sunMat.uniforms.tint.value.copy(col);
-  // Generic sun sphere only shown when original sun is the star.
-  // Star planet keeps its own pivot visible (preserves its colors and rings).
+
+  let lightCol;
+  if(starIdx>=0){
+    // Use the star planet's own color, brightened for light emission
+    const base=planetDominantColor(PLANET_DEFS[starIdx]);
+    // Normalize so brightest channel = 1, then add a warm white lift
+    const mx=Math.max(base.r,base.g,base.b,0.01);
+    lightCol=new THREE.Color(
+      Math.min(1,base.r/mx*.85+.15),
+      Math.min(1,base.g/mx*.85+.15),
+      Math.min(1,base.b/mx*.85+.15));
+  } else {
+    lightCol=starColorFromSize(sz);
+  }
+
+  sunLight.color.copy(lightCol);
+  sunMat.uniforms.tint.value.copy(lightCol);
+  // Tint halos with the same color
+  sunHaloMats.forEach(m=>m.color.copy(lightCol));
+
+  // Glow uniform: star planet renders self-illuminated, others lit normally
+  PLANET_DEFS.forEach((pd,i)=>{
+    pd.mesh.material.uniforms.glow.value=(i===starIdx)?1.0:0.0;
+  });
+
   sunMesh.visible=(starIdx<0);
   PLANET_DEFS.forEach(pd=>{ pd.pivot.visible=true; });
   updateTableStarMarkers();
@@ -569,10 +599,11 @@ function keplerStep(dt){
 
     PLANET_DEFS.forEach((pd,i)=>{
       if(i===starIdx){
-        // New star glides smoothly to origin
+        // New star glides smoothly to origin, glow fades in
         pd.physPos.lerpVectors(starTransition.fromPos[i],_origin,t);
         pd.vel.set(0,0,0);
         pd.pivot.position.copy(pd.physPos);
+        pd.mesh.material.uniforms.glow.value=t;
         return;
       }
       // Advance Kepler phase continuously
