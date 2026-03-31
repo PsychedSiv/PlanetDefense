@@ -245,6 +245,7 @@ scene.add(new THREE.AmbientLight(0x0d1a33,.6));
 let sunSize=SUN_R;   // adjustable star size (when original sun is the star)
 let starIdx=-1;      // -1=original sun is star, 0-4=that planet is star
 const KEPLER_G=20;   // GM_star = KEPLER_G * starSize; 20*6=120 matches original periods
+let starTransition=null; // {elapsed,duration,fromPos[]} — animated star shift
 
 const PLANET_DEFS=[
   {name:'p1',label:'green world', R:3.5,dist:28,yi:0, angle:0,
@@ -501,7 +502,8 @@ function updateStarVisuals(){
   const col=starColorFromSize(sz);
   sunLight.color.copy(col);
   sunMat.uniforms.tint.value.copy(col);
-  PLANET_DEFS.forEach((pd,i)=>{ pd.pivot.visible=(i!==starIdx); });
+  // Keep new star's planet mesh visible while it's still travelling to center
+  PLANET_DEFS.forEach((pd,i)=>{ pd.pivot.visible=(i!==starIdx)||starTransition!==null; });
   updateTableStarMarkers();
 }
 
@@ -510,11 +512,13 @@ function checkStarTransition(){
   PLANET_DEFS.forEach((pd,i)=>{ if(pd.size>maxSz){maxSz=pd.size;newIdx=i;} });
   if(newIdx===starIdx) return;
 
-  // Re-enable old star planet pivot
+  // Capture current world positions before any changes
+  const fromPos=PLANET_DEFS.map(pd=>pd.physPos.clone());
+
+  // Re-enable old star planet pivot so it's visible during transition
   if(starIdx>=0) PLANET_DEFS[starIdx].pivot.visible=true;
 
   if(newIdx>=0){
-    // A planet becomes the new star
     const newStarPos=PLANET_DEFS[newIdx].physPos.clone();
     PLANET_DEFS.forEach((pd,i)=>{
       if(i===newIdx) return;
@@ -523,16 +527,12 @@ function checkStarTransition(){
       pd.phase=Math.atan2(rel.z,rel.x);
       pd.inc=Math.atan2(-rel.y,Math.max(pd.a,.1));
     });
-    // Old star (if was a planet) also gets new orbital elements
     if(starIdx>=0){
       const rel=PLANET_DEFS[starIdx].physPos.clone().sub(newStarPos);
       PLANET_DEFS[starIdx].a=Math.max(rel.length(),5);
       PLANET_DEFS[starIdx].phase=Math.atan2(rel.z,rel.x);
     }
-    PLANET_DEFS[newIdx].physPos.set(0,0,0);
-    PLANET_DEFS[newIdx].pivot.position.set(0,0,0);
   } else {
-    // Original sun reclaims star — re-orbit all planets around origin
     PLANET_DEFS.forEach((pd,i)=>{
       if(i===starIdx) return;
       const rel=pd.physPos.clone();
@@ -540,21 +540,62 @@ function checkStarTransition(){
       pd.phase=Math.atan2(rel.z,rel.x);
       pd.inc=Math.atan2(-rel.y,Math.max(pd.a,.1));
     });
-    // Ex-star planet returns to its original orbital distance
     if(starIdx>=0){
       PLANET_DEFS[starIdx].a=PLANET_DEFS[starIdx].dist;
       PLANET_DEFS[starIdx].phase=PLANET_DEFS[starIdx].angle;
       PLANET_DEFS[starIdx].inc=Math.atan2(-PLANET_DEFS[starIdx].yi,PLANET_DEFS[starIdx].dist);
-      const cx=PLANET_DEFS[starIdx].a*Math.cos(PLANET_DEFS[starIdx].phase);
-      const sz=PLANET_DEFS[starIdx].a*Math.sin(PLANET_DEFS[starIdx].phase);
-      PLANET_DEFS[starIdx].physPos.set(cx,-sz*Math.sin(PLANET_DEFS[starIdx].inc),sz*Math.cos(PLANET_DEFS[starIdx].inc));
     }
   }
+
   starIdx=newIdx;
+  starTransition={elapsed:0, duration:4.0, fromPos};
+  updateStarVisuals();
 }
 
+const _origin=new THREE.Vector3(0,0,0);
 function keplerStep(dt){
   const GM=KEPLER_G*getCurrentStarSize();
+
+  if(starTransition){
+    starTransition.elapsed+=dt;
+    const raw=Math.min(1,starTransition.elapsed/starTransition.duration);
+    // Smooth ease-in-out
+    const t=raw<0.5?2*raw*raw:1-Math.pow(-2*raw+2,2)/2;
+
+    PLANET_DEFS.forEach((pd,i)=>{
+      if(i===starIdx){
+        // New star glides smoothly to origin
+        pd.physPos.lerpVectors(starTransition.fromPos[i],_origin,t);
+        pd.vel.set(0,0,0);
+        pd.pivot.position.copy(pd.physPos);
+        return;
+      }
+      // Advance Kepler phase continuously
+      const omega=Math.sqrt(GM/Math.pow(pd.a,3));
+      pd.phase+=omega*dt;
+      const cx=pd.a*Math.cos(pd.phase),sz=pd.a*Math.sin(pd.phase);
+      const kepPos=new THREE.Vector3(cx,-sz*Math.sin(pd.inc),sz*Math.cos(pd.inc));
+      // Blend from captured start position into the new Kepler orbit
+      pd.physPos.lerpVectors(starTransition.fromPos[i],kepPos,t);
+      pd.vel.set(-Math.sin(pd.phase)*omega*pd.a,
+                 -Math.cos(pd.phase)*Math.sin(pd.inc)*omega*pd.a,
+                  Math.cos(pd.phase)*Math.cos(pd.inc)*omega*pd.a);
+      pd.pivot.position.copy(pd.physPos);
+    });
+
+    if(starTransition.elapsed>=starTransition.duration){
+      starTransition=null;
+      // Snap star to exact origin and hide its planet mesh
+      if(starIdx>=0){
+        PLANET_DEFS[starIdx].physPos.set(0,0,0);
+        PLANET_DEFS[starIdx].pivot.position.set(0,0,0);
+      }
+      updateStarVisuals(); // hides star planet pivot now that animation is done
+    }
+    return;
+  }
+
+  // Normal Kepler
   PLANET_DEFS.forEach((pd,i)=>{
     if(i===starIdx){
       pd.physPos.set(0,0,0); pd.vel.set(0,0,0);
