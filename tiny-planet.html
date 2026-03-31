@@ -629,7 +629,6 @@ function enterFloat(){
   gameState='float';
   respawnTimer=12; // auto-respawn after 12s
   ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
-  PLANET_TAILS.forEach(l=>l.visible=false); SHIP_TAIL.visible=false;
   updateUI();
 }
 
@@ -706,7 +705,6 @@ function landOn(pd){
   camFwd.copy(charFwd);
   charMesh.visible=true;
   ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
-  PLANET_TAILS.forEach(l=>l.visible=false); SHIP_TAIL.visible=false;
   gameState='walk';
   updateUI();
 }
@@ -849,12 +847,7 @@ function refreshOrbits(){
   if(fly&&sC>0){SHIP_ORBIT.geometry.attributes.position.array.set(sPth);SHIP_ORBIT.geometry.attributes.position.needsUpdate=true;SHIP_ORBIT.geometry.setDrawRange(0,sC);SHIP_ORBIT.visible=true;}
   else SHIP_ORBIT.visible=false;
 }
-const TLEN=80,TEVERY=3; let tailF=0;
-function makeTail(c){const pts=new Float32Array(TLEN*3),geo=new THREE.BufferGeometry();const a=new THREE.BufferAttribute(pts,3);a.setUsage(THREE.DynamicDrawUsage);geo.setAttribute('position',a);geo.setDrawRange(0,0);const l=new THREE.Line(geo,new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.28,depthWrite:false}));l.frustumCulled=false;scene.add(l);l.visible=false;l._p=pts;l._h=0;l._c=0;return l;}
-const PLANET_TAILS=PLANET_DEFS.map(pd=>makeTail(pd.trailCol));
-const SHIP_TAIL=makeTail(0xffffff);
-function pushTail(l,x,y,z){const i=l._h*3;l._p[i]=x;l._p[i+1]=y;l._p[i+2]=z;l._h=(l._h+1)%TLEN;l._c=Math.min(l._c+1,TLEN);const out=l.geometry.attributes.position.array,st=l._c<TLEN?0:l._h;for(let j=0;j<l._c;j++){const s=((st+j)%TLEN)*3,d=j*3;out[d]=l._p[s];out[d+1]=l._p[s+1];out[d+2]=l._p[s+2];}l.geometry.attributes.position.needsUpdate=true;l.geometry.setDrawRange(0,l._c);}
-function updateTails(){tailF++;if(tailF%TEVERY!==0)return;const fly=gameState==='fly';PLANET_DEFS.forEach((pd,i)=>{PLANET_TAILS[i].visible=fly;if(fly)pushTail(PLANET_TAILS[i],pd.physPos.x,pd.physPos.y,pd.physPos.z);});SHIP_TAIL.visible=fly;if(fly)pushTail(SHIP_TAIL,shipPos.x,shipPos.y,shipPos.z);}
+function updateTails(){}
 
 // ═══════════════════════════════════════════════════════════
 //  COMBAT: PROJECTILES, EXPLOSIONS, HIT DETECTION
