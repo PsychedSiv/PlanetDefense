@@ -735,6 +735,8 @@ function walkStep(dt,moveFwd,moveRight){
 //  SHIP FLIGHT
 // ═══════════════════════════════════════════════════════════
 const SHIP_SPEED=5, SHIP_TURN=1.4, SHIP_ROLL=1.6;
+const SHIP_RADIUS=1.5;       // collision hull radius
+const LAND_MAX_SPEED=4.0;    // max approach speed (world units/s) for a soft landing
 let shipQ=new THREE.Quaternion();
 let shipPos=new THREE.Vector3();
 let shipVel=new THREE.Vector3();
@@ -771,6 +773,28 @@ function shipFlyStep(dt,thrustFB,strafeRL,roll){
   shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt; shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt; shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
   const a1=gravAccel(shipPos);
   shipVel.x+=.5*(a0.x+a1.x)*dt; shipVel.y+=.5*(a0.y+a1.y)*dt; shipVel.z+=.5*(a0.z+a1.z)*dt;
+  // Surface collision — check every planet
+  for(const pd of PLANET_DEFS){
+    const diff=new THREE.Vector3().subVectors(shipPos,pd.physPos);
+    const dist=diff.length();
+    if(dist<0.01) continue;
+    const surface=pd.size+SHIP_RADIUS;
+    if(dist<surface){
+      const norm=diff.divideScalar(dist);
+      // Push ship to surface
+      shipPos.copy(pd.physPos).addScaledVector(norm,surface);
+      const vOut=shipVel.dot(norm); // negative = moving into planet
+      if(vOut<0){
+        if(-vOut<LAND_MAX_SPEED){
+          // Soft landing
+          landOn(pd);
+          return;
+        }
+        // Too fast — bounce with energy loss
+        shipVel.addScaledVector(norm,-vOut*1.5);
+      }
+    }
+  }
   shipPivot.position.copy(shipPos);
   shipPivot.setRotationFromQuaternion(shipQ);
   const thrusting=thrustFB>0||strafeRL!==0;
@@ -824,7 +848,7 @@ function floatStep(dt){
   }
 
   // Auto-land on planet
-  if(nearPD && nearD<nearPD.R+.8){
+  if(nearPD && nearD<nearPD.size+.8){
     landOnFloat(nearPD);
     return;
   }
@@ -856,7 +880,7 @@ function landOnFloat(pd){
 // ═══════════════════════════════════════════════════════════
 function tryLand(){
   let best=null,bd=Infinity;
-  PLANET_DEFS.forEach(pd=>{const d=shipPos.distanceTo(pd.physPos);if(d<pd.R+3.5&&d<bd){bd=d;best=pd;}});
+  PLANET_DEFS.forEach(pd=>{const d=shipPos.distanceTo(pd.physPos);if(d<pd.size+SHIP_RADIUS+4&&d<bd){bd=d;best=pd;}});
   if(best) landOn(best);
 }
 function landOn(pd){
