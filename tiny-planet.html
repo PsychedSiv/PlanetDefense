@@ -741,6 +741,7 @@ let shipQ=new THREE.Quaternion();
 let shipPos=new THREE.Vector3();
 let shipVel=new THREE.Vector3();
 const shipPhysBody={pos:shipPos,vel:shipVel,gm:0};
+let shipDockedPD=null; // non-null when ship is stuck to a planet surface
 
 function getShipFwd(){return new THREE.Vector3(0,0,-1).applyQuaternion(shipQ).normalize();}
 function getShipUp() {return new THREE.Vector3(0,1,0).applyQuaternion(shipQ).normalize();}
@@ -757,6 +758,7 @@ function enterShip(){
   if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
   scene.add(shipPivot);
   shipPivot.position.copy(shipPos);
+  shipDockedPD=null;
   charMesh.visible=false;
   myShipHp=SHIP_MAX_HP;
   gameState='fly';
@@ -765,15 +767,47 @@ function enterShip(){
   updateUI();
 }
 
+function dockShipTo(pd){
+  // Attach ship to planet surface without exiting the player
+  const norm=shipPos.clone().sub(pd.physPos).normalize();
+  if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
+  attachToPlanet(shipPivot,pd,norm,.01);
+  shipDockedPD=pd;
+}
+
+function undockShip(){
+  if(!shipDockedPD) return;
+  shipPivot.updateWorldMatrix(true,false);
+  const me=shipPivot.matrixWorld.elements;
+  shipPos.set(me[12],me[13],me[14]);
+  const sx=new THREE.Vector3(me[0],me[1],me[2]).length();
+  const rm=new THREE.Matrix4();
+  rm.set(me[0]/sx,me[4],me[8],0,me[1]/sx,me[5],me[9],0,me[2]/sx,me[6],me[10],0,0,0,0,1);
+  shipQ.setFromRotationMatrix(rm).normalize();
+  shipVel.copy(shipDockedPD.vel);
+  if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
+  scene.add(shipPivot);
+  shipPivot.position.copy(shipPos);
+  shipDockedPD=null;
+}
+
 function shipFlyStep(dt,thrustFB,strafeRL,roll){
-  if(roll){  const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt); shipQ.multiplyQuaternions(q,shipQ).normalize();}
+  // While docked: any thrust undocks; otherwise ride with the planet
+  if(shipDockedPD){
+    if(thrustFB||strafeRL||roll) undockShip();
+    else{
+      shipPivot.getWorldPosition(shipPos);
+      return;
+    }
+  }
+  if(roll){const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt);shipQ.multiplyQuaternions(q,shipQ).normalize();}
   if(thrustFB) shipVel.addScaledVector(getShipFwd(),thrustFB*SHIP_SPEED*dt);
-  if(strafeRL){const r=new THREE.Vector3(1,0,0).applyQuaternion(shipQ).normalize(); shipVel.addScaledVector(r,strafeRL*SHIP_SPEED*dt);}
+  if(strafeRL){const r=new THREE.Vector3(1,0,0).applyQuaternion(shipQ).normalize();shipVel.addScaledVector(r,strafeRL*SHIP_SPEED*dt);}
   const a0=gravAccel(shipPos);
-  shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt; shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt; shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
+  shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt;shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt;shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
   const a1=gravAccel(shipPos);
-  shipVel.x+=.5*(a0.x+a1.x)*dt; shipVel.y+=.5*(a0.y+a1.y)*dt; shipVel.z+=.5*(a0.z+a1.z)*dt;
-  // Surface collision — check every planet
+  shipVel.x+=.5*(a0.x+a1.x)*dt;shipVel.y+=.5*(a0.y+a1.y)*dt;shipVel.z+=.5*(a0.z+a1.z)*dt;
+  // Surface collision
   for(const pd of PLANET_DEFS){
     const diff=new THREE.Vector3().subVectors(shipPos,pd.physPos);
     const dist=diff.length();
@@ -781,24 +815,18 @@ function shipFlyStep(dt,thrustFB,strafeRL,roll){
     const surface=pd.size+SHIP_RADIUS;
     if(dist<surface){
       const norm=diff.divideScalar(dist);
-      // Push ship to surface
       shipPos.copy(pd.physPos).addScaledVector(norm,surface);
-      const vOut=shipVel.dot(norm); // negative = moving into planet
+      const vOut=shipVel.dot(norm);
       if(vOut<0){
-        if(-vOut<LAND_MAX_SPEED){
-          // Soft landing
-          landOn(pd);
-          return;
-        }
-        // Too fast — bounce with energy loss
-        shipVel.addScaledVector(norm,-vOut*1.5);
+        if(-vOut<LAND_MAX_SPEED){ dockShipTo(pd); return; }
+        shipVel.addScaledVector(norm,-vOut*1.5); // bounce
       }
     }
   }
   shipPivot.position.copy(shipPos);
   shipPivot.setRotationFromQuaternion(shipQ);
   const thrusting=thrustFB>0||strafeRL!==0;
-  const gl=shipMesh.getObjectByName('glow'); if(gl) gl.intensity=thrusting?2.2:.1;
+  const gl=shipMesh.getObjectByName('glow');if(gl)gl.intensity=thrusting?2.2:.1;
   ['glowL','glowR'].forEach(n=>{const l=shipMesh.getObjectByName(n);if(l)l.intensity=thrusting?.4:0;});
 }
 
