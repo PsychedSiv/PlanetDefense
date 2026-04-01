@@ -741,7 +741,8 @@ let shipQ=new THREE.Quaternion();
 let shipPos=new THREE.Vector3();
 let shipVel=new THREE.Vector3();
 const shipPhysBody={pos:shipPos,vel:shipVel,gm:0};
-let shipDockedPD=null; // non-null when ship is stuck to a planet surface
+let shipDockedPD=null;           // non-null when ship is stuck to a planet surface
+const shipDockedNorm=new THREE.Vector3(); // world-space surface normal at dock point
 
 function getShipFwd(){return new THREE.Vector3(0,0,-1).applyQuaternion(shipQ).normalize();}
 function getShipUp() {return new THREE.Vector3(0,1,0).applyQuaternion(shipQ).normalize();}
@@ -768,35 +769,35 @@ function enterShip(){
 }
 
 function dockShipTo(pd){
-  // Attach ship to planet surface without exiting the player
-  const norm=shipPos.clone().sub(pd.physPos).normalize();
-  if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
-  attachToPlanet(shipPivot,pd,norm,.01);
+  // Record exact world-space surface normal at the collision point
+  shipDockedNorm.copy(shipPos).sub(pd.physPos).normalize();
   shipDockedPD=pd;
+  // Orient ship upright on surface (Y = away from planet)
+  const n=shipDockedNorm;
+  let ref=new THREE.Vector3(0,0,1);
+  if(Math.abs(n.dot(ref))>.99) ref.set(1,0,0);
+  const right=ref.clone().cross(n).normalize();
+  const fwd=n.clone().cross(right).normalize();
+  shipQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right,n,fwd.clone().negate()));
 }
 
 function undockShip(){
   if(!shipDockedPD) return;
-  shipPivot.updateWorldMatrix(true,false);
-  const me=shipPivot.matrixWorld.elements;
-  shipPos.set(me[12],me[13],me[14]);
-  const sx=new THREE.Vector3(me[0],me[1],me[2]).length();
-  const rm=new THREE.Matrix4();
-  rm.set(me[0]/sx,me[4],me[8],0,me[1]/sx,me[5],me[9],0,me[2]/sx,me[6],me[10],0,0,0,0,1);
-  shipQ.setFromRotationMatrix(rm).normalize();
-  shipVel.copy(shipDockedPD.vel);
-  if(shipPivot.parent) shipPivot.parent.remove(shipPivot);
-  scene.add(shipPivot);
-  shipPivot.position.copy(shipPos);
+  shipVel.copy(shipDockedPD.vel); // inherit planet orbital velocity
   shipDockedPD=null;
 }
 
 function shipFlyStep(dt,thrustFB,strafeRL,roll){
-  // While docked: any thrust undocks; otherwise ride with the planet
   if(shipDockedPD){
-    if(thrustFB||strafeRL||roll) undockShip();
-    else{
-      shipPivot.getWorldPosition(shipPos);
+    if(thrustFB||strafeRL||roll){
+      undockShip(); // thrust lifts off
+    } else {
+      // Ride with planet: recompute world position from stored normal each frame
+      shipPos.copy(shipDockedPD.physPos).addScaledVector(shipDockedNorm,shipDockedPD.size+SHIP_RADIUS*.5);
+      shipPivot.position.copy(shipPos);
+      shipPivot.setRotationFromQuaternion(shipQ);
+      const gl=shipMesh.getObjectByName('glow');if(gl)gl.intensity=.1;
+      ['glowL','glowR'].forEach(n=>{const l=shipMesh.getObjectByName(n);if(l)l.intensity=0;});
       return;
     }
   }
@@ -818,8 +819,8 @@ function shipFlyStep(dt,thrustFB,strafeRL,roll){
       shipPos.copy(pd.physPos).addScaledVector(norm,surface);
       const vOut=shipVel.dot(norm);
       if(vOut<0){
-        if(-vOut<LAND_MAX_SPEED){ dockShipTo(pd); return; }
-        shipVel.addScaledVector(norm,-vOut*1.5); // bounce
+        if(-vOut<LAND_MAX_SPEED){ dockShipTo(pd); }
+        else shipVel.addScaledVector(norm,-vOut*1.5); // bounce
       }
     }
   }
@@ -914,15 +915,12 @@ function tryLand(){
 
 function exitShip(){
   charMesh.visible=true;
-  // Is the ship currently parked on a planet?
-  let landedPD=null;
-  PLANET_DEFS.forEach(pd=>{ if(pd.pivot===shipPivot.parent) landedPD=pd; });
+  const landedPD=shipDockedPD;
+  shipDockedPD=null;
 
   if(landedPD){
-    // Exit at the ship's exact surface position on the planet
-    const shipWorld=new THREE.Vector3();
-    shipPivot.getWorldPosition(shipWorld);
-    const norm=shipWorld.clone().sub(landedPD.physPos).normalize();
+    // Exit at the ship's exact dock position on the planet
+    const norm=shipDockedNorm.clone();
     activePD=landedPD;
     attachToPlanet(charPivot,landedPD,norm,.02);
     let t=new THREE.Vector3(0,0,1);
