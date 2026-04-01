@@ -787,12 +787,18 @@ function undockShip(){
   shipDockedPD=null;
 }
 
-function shipFlyStep(dt,thrustFB,strafeRL,roll){
+function planetUpDir(){
+  let nearPD=null,nearD=Infinity;
+  PLANET_DEFS.forEach(pd=>{const d=shipPos.distanceTo(pd.physPos);if(d<nearD){nearD=d;nearPD=pd;}});
+  return nearPD?shipPos.clone().sub(nearPD.physPos).normalize():getShipUp();
+}
+
+function shipFlyStep(dt,thrustFB,strafeRL,roll,thrustUD){
   if(shipDockedPD){
-    if(thrustFB||strafeRL||roll){
-      undockShip(); // thrust lifts off
+    if(thrustFB||strafeRL||roll||thrustUD>0){
+      undockShip(); // fall through to apply thrust
     } else {
-      // Ride with planet: recompute world position from stored normal each frame
+      // Ride with planet
       shipPos.copy(shipDockedPD.physPos).addScaledVector(shipDockedNorm,shipDockedPD.size+SHIP_RADIUS*.5);
       shipPivot.position.copy(shipPos);
       shipPivot.setRotationFromQuaternion(shipQ);
@@ -804,6 +810,7 @@ function shipFlyStep(dt,thrustFB,strafeRL,roll){
   if(roll){const q=new THREE.Quaternion().setFromAxisAngle(getShipFwd(),-roll*SHIP_ROLL*dt);shipQ.multiplyQuaternions(q,shipQ).normalize();}
   if(thrustFB) shipVel.addScaledVector(getShipFwd(),thrustFB*SHIP_SPEED*dt);
   if(strafeRL){const r=new THREE.Vector3(1,0,0).applyQuaternion(shipQ).normalize();shipVel.addScaledVector(r,strafeRL*SHIP_SPEED*dt);}
+  if(thrustUD) shipVel.addScaledVector(planetUpDir(),thrustUD*SHIP_SPEED*dt);
   const a0=gravAccel(shipPos);
   shipPos.x+=shipVel.x*dt+.5*a0.x*dt*dt;shipPos.y+=shipVel.y*dt+.5*a0.y*dt*dt;shipPos.z+=shipVel.z*dt+.5*a0.z*dt*dt;
   const a1=gravAccel(shipPos);
@@ -826,7 +833,7 @@ function shipFlyStep(dt,thrustFB,strafeRL,roll){
   }
   shipPivot.position.copy(shipPos);
   shipPivot.setRotationFromQuaternion(shipQ);
-  const thrusting=thrustFB>0||strafeRL!==0;
+  const thrusting=thrustFB!==0||strafeRL!==0||thrustUD!==0;
   const gl=shipMesh.getObjectByName('glow');if(gl)gl.intensity=thrusting?2.2:.1;
   ['glowL','glowR'].forEach(n=>{const l=shipMesh.getObjectByName(n);if(l)l.intensity=thrusting?.4:0;});
 }
@@ -1675,7 +1682,9 @@ function loop(){
     ?(K['KeyW']||K['ArrowUp']?1:K['KeyS']||K['ArrowDown']?-1:-JOY.ly):0;
   const moveRight=(gameState==='walk'||gameState==='float')
     ?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
-  const thrustFB=gameState==='fly'?(K['KeyW']?1:K['KeyS']?-1:-JOY.ly):0;
+  const _sh=K['ShiftLeft']||K['ShiftRight'];
+  const thrustFB=gameState==='fly'?((!_sh&&K['KeyW'])?1:(!_sh&&K['KeyS'])?-1:-JOY.ly):0;
+  const thrustUD=gameState==='fly'?((_sh&&K['KeyW'])?1:(_sh&&K['KeyS'])?-1:0):0;
   const strafeRL=gameState==='fly'?(K['KeyD']?1:K['KeyA']?-1:JOY.lx):0;
   const roll    =gameState==='fly'?(K['KeyQ']?1:K['KeyE']?-1:-JOY.rx):0;
 
@@ -1714,7 +1723,7 @@ function loop(){
       document.getElementById('hint').textContent=
         'WASD·move · SHIFT·run · F·board ship · click·shoot · ESC·unlock';
   } else if(gameState==='fly'){
-    shipFlyStep(dt,thrustFB,strafeRL,roll);
+    shipFlyStep(dt,thrustFB,strafeRL,roll,thrustUD);
     flyCamera();
     if(thrustFB!==0||strafeRL!==0) refreshOrbits();
     else{orbitTimer-=dt;if(orbitTimer<=0){orbitTimer=3;refreshOrbits();}}
