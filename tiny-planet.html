@@ -883,6 +883,41 @@ function tryLand(){
   PLANET_DEFS.forEach(pd=>{const d=shipPos.distanceTo(pd.physPos);if(d<pd.size+SHIP_RADIUS+4&&d<bd){bd=d;best=pd;}});
   if(best) landOn(best);
 }
+
+function exitShip(){
+  charMesh.visible=true;
+  // Is the ship currently parked on a planet?
+  let landedPD=null;
+  PLANET_DEFS.forEach(pd=>{ if(pd.pivot===shipPivot.parent) landedPD=pd; });
+
+  if(landedPD){
+    // Exit at the ship's exact surface position on the planet
+    const shipWorld=new THREE.Vector3();
+    shipPivot.getWorldPosition(shipWorld);
+    const norm=shipWorld.clone().sub(landedPD.physPos).normalize();
+    activePD=landedPD;
+    attachToPlanet(charPivot,landedPD,norm,.02);
+    let t=new THREE.Vector3(0,0,1);
+    if(Math.abs(norm.dot(t))>.99) t.set(1,0,0);
+    t.cross(norm).normalize();
+    charFwd.copy(t).addScaledVector(norm,-t.dot(norm)).normalize();
+    camFwd.copy(charFwd);
+    ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
+    gameState='walk';
+  } else {
+    // Eject into space — player floats at ship's current position
+    floatPos.copy(shipPos);
+    floatVel.copy(shipVel);
+    if(charPivot.parent) charPivot.parent.remove(charPivot);
+    scene.add(charPivot);
+    charPivot.position.copy(floatPos);
+    respawnTimer=9999; // voluntary EVA — no auto-respawn
+    ORBIT_LINES.forEach(l=>l.visible=false); SHIP_ORBIT.visible=false;
+    document.getElementById('respawn-hud').style.display='none';
+    gameState='float';
+  }
+  updateUI();
+}
 function landOn(pd){
   const norm=shipPos.clone().sub(pd.physPos).normalize();
   activePD=pd;
@@ -1240,9 +1275,9 @@ function updateUI(){
   document.getElementById('xhair').style.display=
     (document.pointerLockElement===renderer.domElement)?'block':'none';
   document.getElementById('hint').textContent=fly
-    ?'click·lock  WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F/↓·land'
-    :flt?'drifting — click to aim+shoot'
-    :'click to aim · WASD·move · SHIFT·run · E/↑·board · CLICK·shoot · ESC·unlock';
+    ?'WASD·move  Q/E·roll  MOUSE·aim  CLICK·shoot  F·exit'
+    :flt?'drifting — F·board ship  click·shoot'
+    :'WASD·move · SHIFT·run · F·board ship · CLICK·shoot · ESC·unlock';
 }
 updateUI(); updateHud();
 
@@ -1257,12 +1292,10 @@ addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT') return;
   K[e.code]=true;
   if(e.code==='ShiftLeft'||e.code==='ShiftRight') isRunning=!isRunning;
-  if((e.code==='KeyE'||e.code==='ArrowUp')&&gameState==='walk'){
-    const cw=new THREE.Vector3(),sw=new THREE.Vector3();
-    charPivot.getWorldPosition(cw); shipPivot.getWorldPosition(sw);
-    if(cw.distanceTo(sw)<1.9) enterShip();
+  if(e.code==='KeyF'){
+    if(gameState==='walk'||gameState==='float') enterShip();
+    else if(gameState==='fly') exitShip();
   }
-  if((e.code==='KeyF'||e.code==='ArrowDown')&&gameState==='fly') tryLand();
   if(e.code==='Space'&&gameState==='fly'){} // handled in loop
   e.preventDefault();
 });
@@ -1331,9 +1364,13 @@ function holdBtn(el,dn,up){el.addEventListener('touchstart',e=>{e.preventDefault
 
 tapBtn(document.getElementById('bShoot'),()=>{if(shootCooldown<=0&&gameReady){fireShot();shootCooldown=SHOOT_COOLDOWN;}});
 holdBtn(document.getElementById('bBoard'),
-  ()=>{if(gameState==='fly'){K['Space']=true;}else{const cw=new THREE.Vector3(),sw=new THREE.Vector3();charPivot.getWorldPosition(cw);shipPivot.getWorldPosition(sw);if(cw.distanceTo(sw)<1.9)enterShip();}},
+  ()=>{if(gameState==='fly'){K['Space']=true;}},
   ()=>K['Space']=false);
-tapBtn(document.getElementById('bLand'),()=>tryLand());
+// F button — universal board/exit
+tapBtn(document.getElementById('bLand'),()=>{
+  if(gameState==='walk'||gameState==='float') enterShip();
+  else if(gameState==='fly') exitShip();
+});
 holdBtn(document.getElementById('bThrust'),()=>K['Space']=true,()=>K['Space']=false);
 
 // ═══════════════════════════════════════════════════════════
@@ -1649,7 +1686,7 @@ function loop(){
       document.getElementById('hint').textContent='[ E ] board ship';
     else
       document.getElementById('hint').textContent=
-        'click to aim · WASD·move · SHIFT·run · E·board · click·shoot · ESC·unlock';
+        'WASD·move · SHIFT·run · F·board ship · click·shoot · ESC·unlock';
   } else if(gameState==='fly'){
     shipFlyStep(dt,thrustFB,strafeRL,roll);
     flyCamera();
