@@ -475,6 +475,8 @@ function attachToPlanet(anchor,pd,normalLocal,gap=0.02){
   pd.pivot.add(anchor);
   const n=normalLocal.clone().normalize();
   anchor.position.copy(n).multiplyScalar(pd.baseR+gap);
+  // Counteract planet pivot scale so character/ship stays constant world size
+  anchor.scale.setScalar(pd.baseR/pd.size);
   let ref=new THREE.Vector3(0,0,1);
   if(Math.abs(n.dot(ref))>.99) ref.set(1,0,0);
   const right=ref.clone().cross(n).normalize();
@@ -1678,6 +1680,9 @@ function applySize(starId,v){
     pd.size=Math.max(0.1,v);
     pd.gm=pd.size*.35;
     pd.pivot.scale.setScalar(pd.size/pd.baseR);
+    // Keep any character/ship on this planet at constant world size
+    const invS=pd.baseR/pd.size;
+    [charPivot,shipPivot].forEach(a=>{ if(a.parent===pd.pivot) a.scale.setScalar(invS); });
   }
   checkStarTransition();
   updateStarVisuals();
